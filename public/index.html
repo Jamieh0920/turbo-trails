@@ -302,6 +302,7 @@ td.pts{color:#7ee7c6;width:52px}
       <div class="lab">RACE</div><div class="seg" id="pdMode"></div>
       <div id="pdTracks"></div>
       <div class="lab">DIFFICULTY</div><div class="seg" id="pdDiff"></div>
+      <div class="lab">TV GRAPHICS</div><div class="seg" id="pdGfx"></div>
       <button class="big" id="pdStart">START RACE</button>
     </div>
     <div id="padWait" class="padNote">Player 1 is choosing the race…</div>
@@ -382,6 +383,17 @@ if(touchMode){document.body.classList.add('touch');$('helpKeys').innerHTML='Hold
 // ---------- renderer / scene ----------
 const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true,logarithmicDepthBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+// graphics quality (used by TV mode): fast = old TV setting, sharp = native res + crisp textures, ultra = supersampled + longer view
+const GFX={fast:{pr:()=>Math.min(devicePixelRatio||1,1)*0.85,aniso:1,fog:1,far:950},sharp:{pr:()=>Math.min(devicePixelRatio||1,2),aniso:8,fog:1.15,far:1150},
+  ultra:{pr:()=>Math.min(devicePixelRatio||1,2)*1.4,aniso:16,fog:1.4,far:1400}};
+let gfxLevel=null,FOGM=1;
+function setAniso(root){const a=Math.min(gfxLevel?GFX[gfxLevel].aniso:4,renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1);
+  (root||scene).traverse(o=>{const ms=o.material?(Array.isArray(o.material)?o.material:[o.material]):[];for(const m of ms)if(m.map&&m.map.anisotropy!==a){m.map.anisotropy=a;m.map.needsUpdate=true;}});}
+function applyGfx(level){gfxLevel=level&&GFX[level]?level:null;const g=gfxLevel?GFX[gfxLevel]:null;
+  renderer.setPixelRatio(g?g.pr():Math.min(devicePixelRatio||1,2));FOGM=g?g.fog:1;
+  if(scene.fog&&curTrack&&clouds.length&&clouds[0].visible){scene.fog.near=curTrack.fog[0]*FOGM;scene.fog.far=curTrack.fog[1]*FOGM;}
+  if(typeof panes!=='undefined')for(const pn of panes){pn.cam.far=g?g.far:950;pn.cam.updateProjectionMatrix();}
+  setAniso();try{resize();}catch(e){}}
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x8fd3ff);
 scene.fog=new THREE.Fog(0x8fd3ff,240,950);
@@ -558,7 +570,7 @@ function buildScenery(def){
 function buildTrack(def){
   if(world){scene.remove(world);disposeGroup(world);}
   world=new THREE.Group();scene.add(world);curTrack=def;clouds=[];snow=null;stripLayer=0;
-  scene.background=new THREE.Color(def.sky);scene.fog=new THREE.Fog(def.sky,def.fog[0],def.fog[1]);
+  scene.background=new THREE.Color(def.sky);scene.fog=new THREE.Fog(def.sky,def.fog[0]*FOGM,def.fog[1]*FOGM);
   hemi.color.setHex(def.hemi[0]);hemi.groundColor.setHex(def.hemi[1]);hemi.intensity=def.hemi[2];sun.intensity=def.sun;
   const curve=new THREE.CatmullRomCurve3(def.pts.map(p=>new V3(p[0]*1.6,p[2]||0,p[1]*1.6)),true,'centripetal');
   N=clamp(Math.round(curve.getLength()/2.45),600,2400);
@@ -626,6 +638,7 @@ function buildTrack(def){
   if(def.snow){const pos=[];for(let i=0;i<1600;i++)pos.push((Math.random()-.5)*200,Math.random()*60,(Math.random()-.5)*200);
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
     snow=new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.45,transparent:true,opacity:0.9}));world.add(snow);}
+  if(gfxLevel)setAniso(world);
   // item boxes
   boxes=[];featT=0;
   for(const idx of BOXI)for(const l of [-5.4,-1.8,1.8,5.4]){const p=at(idx,l,0);const base=p.y+1.6;p.y=0;const m=new THREE.Mesh(boxGeo,boxMat);m.userData.keep=true;m.position.set(p.x,base,p.z);world.add(m);boxes.push({pos:p,base,mesh:m,respawn:0,ph:Math.random()*6});}
@@ -1255,7 +1268,7 @@ function update(dt){
     if(scene.fog){scene.fog.near=camR*0.9;scene.fog.far=camR*2.6;}
     if(state==='results'){raceTime+=dt;for(const k of karts){if(k.remote)netInterp(k,dt);else stepKart(k,aiInput(k,dt),dt);syncMesh(k,dt);}netTick(dt);}
     return;}
-  if(clouds.length&&!clouds[0].visible){for(const c of clouds)c.visible=true;if(scene.fog&&curTrack){scene.fog.near=curTrack.fog[0];scene.fog.far=curTrack.fog[1];}}
+  if(clouds.length&&!clouds[0].visible){for(const c of clouds)c.visible=true;if(scene.fog&&curTrack){scene.fog.near=curTrack.fog[0]*FOGM;scene.fog.far=curTrack.fog[1]*FOGM;}}
   if(state==='countdown'){
     countdown-=dt;const c=Math.ceil(countdown);if(tilt.on&&tilt.ok)tilt.center=tilt.raw;
     if(c!==lastCount&&c>0&&c<=3){lastCount=c;$('msg').classList.remove('title');showMsg(String(c),0.9);sfx.count();}
@@ -1533,14 +1546,15 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(tvs||pad
 function startTv(){
   if(tvs||net)return;initAudio();$('tvErr').textContent='Connecting…';
   let ws;try{ws=new WebSocket(wsUrl());}catch(e){$('tvErr').textContent='TV mode only works on the Turbo Trails website.';return;}
-  tvs={ws,room:null,pads:new Map(),order:[],leader:null,settings:{mode:'single',track:curTrack.id,cup:'classic',diff:difficulty},hudT:0,bT:0};
+  tvs={ws,room:null,pads:new Map(),order:[],leader:null,settings:{mode:'single',track:curTrack.id,cup:'classic',diff:difficulty,gfx:tvGfxSaved()},hudT:0,bT:0};
   ws.onopen=()=>tvSend({t:'tvcreate'});
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(x){return;}onTv(m);};
   ws.onclose=()=>{const had=tvs&&tvs.room;exitTv(had?'Lost connection to the game server.':'Could not reach the game server. If it has been idle it can take a minute to wake up — please try again.');};
-  document.body.classList.add('tvmode');renderer.setPixelRatio(Math.min(devicePixelRatio||1,1)*0.85);resize();keepAwake();
+  document.body.classList.add('tvmode');applyGfx(tvs.settings.gfx);keepAwake();
 }
+function tvGfxSaved(){try{const v=localStorage.getItem('turboTrails_tvgfx');if(GFX[v])return v;}catch(e){}return 'sharp';}
 function exitTv(msg){if(tvs){try{tvs.ws.onclose=null;tvs.ws.close();}catch(e){}}tvs=null;clearPanes();document.body.classList.remove('tvmode');
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));resize();$('tvLobby').classList.add('hidden');toMenu();$('tvErr').textContent=msg||'';}
+  applyGfx(null);$('tvLobby').classList.add('hidden');toMenu();$('tvErr').textContent=msg||'';}
 function onTv(m){if(!tvs)return;
   switch(m.t){
     case 'tvcreated':tvs.room=m.room;showTvLobby();break;
@@ -1561,7 +1575,7 @@ function tvAct(from,a,m){const p=tvs.pads.get(from);if(!p)return;const lead=from
   if(a==='cfg'){p.cfg=m.cfg&&typeof m.cfg==='object'?m.cfg:p.cfg;renderTvLobby();tvBroadcast();return;}
   if(!lead)return;
   if(a==='set'&&state==='tvlobby'&&m.settings){const s=m.settings,t=tvs.settings;
-    t.mode=s.mode==='gp'?'gp':'single';if(TRACKS.some(x=>x.id===s.track))t.track=s.track;t.cup=cupOf(s.cup).id;if(DIFF[s.diff])t.diff=s.diff;
+    t.mode=s.mode==='gp'?'gp':'single';if(TRACKS.some(x=>x.id===s.track))t.track=s.track;t.cup=cupOf(s.cup).id;if(DIFF[s.diff])t.diff=s.diff;if(GFX[s.gfx]&&s.gfx!==t.gfx){t.gfx=s.gfx;try{localStorage.setItem('turboTrails_tvgfx',s.gfx);}catch(e){}applyGfx(s.gfx);}
     selectTrack(t.mode==='gp'?cupTrack(t.cup,0):TRACKS.find(x=>x.id===t.track));renderTvLobby();tvBroadcast();return;}
   if(a==='start'&&state==='tvlobby'&&tvs.order.length){tvStart();return;}
   if(a==='again'&&!$('results').classList.contains('hidden')){$('againBtn').click();setTimeout(tvBroadcast,50);return;}
@@ -1581,7 +1595,7 @@ function showTvLobby(){state='tvlobby';$('menu').classList.add('hidden');$('tvLo
 function renderTvLobby(){if(!tvs||state!=='tvlobby')return;const t=tvs.settings;
   $('tvPlayers').innerHTML=tvs.order.map((id,i)=>{const p=tvs.pads.get(id),c=sanitizeCfg(p.cfg);return `<div class="tvp"><span class="dot" style="background:${hexOf(c.body)}"></span>P${i+1} · ${esc(p.name)}${id===tvs.leader?' <i>PICKS THE RACE</i>':''}</div>`;}).join('')||'<div class="tvp empty">Waiting for phones to join…</div>';
   const what=t.mode==='gp'?'🏆 '+cupOf(t.cup).name+' · '+cupOf(t.cup).tracks.map(id=>TRACKS.find(x=>x.id===id).emoji).join(' '):(TRACKS.find(x=>x.id===t.track)||TRACKS[0]).emoji+' '+(TRACKS.find(x=>x.id===t.track)||TRACKS[0]).name;
-  $('tvInfo').innerHTML=tvs.order.length?`<b>${what}</b> · ${t.diff}<br>Player 1 chooses the race on their phone and presses Start`:'Up to 4 players · computer racers fill the rest of the grid';}
+  $('tvInfo').innerHTML=tvs.order.length?`<b>${what}</b> · ${t.diff} · graphics: ${t.gfx||'sharp'}<br>Player 1 chooses the race on their phone and presses Start`:'Up to 4 players · computer racers fill the rest of the grid';}
 function tvPhase(){if(state==='tvlobby')return 'lobby';if(!$('trophy').classList.contains('hidden'))return 'trophy';if(state==='results')return 'results';return 'race';}
 function tvButtons(){const b=[];
   if(!$('results').classList.contains('hidden')){b.push({a:'again',label:$('againBtn').textContent});if(!$('nextBtn').classList.contains('hidden'))b.push({a:'next',label:$('nextBtn').textContent});}
@@ -1602,7 +1616,7 @@ function setupPanes(){clearPanes();const list=tvs.order.map(id=>players.find(k=>
   list.forEach((k,i)=>{const r=R[i],el=document.createElement('div');el.className='pane';
     el.style.cssText=`left:${r[0]*100}%;top:${r[1]*100}%;width:${r[2]*100}%;height:${r[3]*100}%`;
     el.innerHTML=`<div class="pinfo"><div class="pname"><span class="dot" style="background:${k.color}"></span>P${i+1} ${esc(k.name)}</div><div class="ppos"></div><div class="plap"></div></div><div class="pitem"></div><div class="pspd"></div><div class="pmsg"></div>`;
-    $('panes').appendChild(el);const cam=new THREE.PerspectiveCamera(70,1,0.3,950);
+    $('panes').appendChild(el);const cam=new THREE.PerspectiveCamera(70,1,0.3,gfxLevel?GFX[gfxLevel].far:950);
     panes.push({k,el,cam,r,msgT:0,q:s=>el.querySelector(s)});});
   sizePanes();updateCamera(0,true);}
 function clearPanes(){panes=[];const c=$('panes');if(c)c.innerHTML='';}
@@ -1652,10 +1666,12 @@ function renderPadLobby(){if(!pad||pad.phase!=='lobby')return;const lead=pad.lea
   $('pdMode').innerHTML=`<button data-v="single" class="${s.mode!=='gp'?'on':''}">Single race</button><button data-v="gp" class="${s.mode==='gp'?'on':''}">Grand Prix 🏆</button>`;
   $('pdTracks').innerHTML=s.mode==='gp'?CUPS.map(c=>`<button class="tk${s.cup===c.id?' on':''}" data-cup="${c.id}"><span>🏆</span>${c.name}</button>`).join('')
     :TRACKS.map(t=>`<button class="tk${s.track===t.id?' on':''}" data-id="${t.id}"><span>${t.emoji}</span>${t.name}</button>`).join('');
-  $('pdDiff').innerHTML=['easy','normal','hard'].map(d=>`<button data-d="${d}" class="${s.diff===d?'on':''}">${d[0].toUpperCase()+d.slice(1)}</button>`).join('');}
+  $('pdDiff').innerHTML=['easy','normal','hard'].map(d=>`<button data-d="${d}" class="${s.diff===d?'on':''}">${d[0].toUpperCase()+d.slice(1)}</button>`).join('');
+  const gf=s.gfx||'sharp';$('pdGfx').innerHTML=[['fast','Fast'],['sharp','Sharp'],['ultra','Ultra']].map(([v,l])=>`<button data-g="${v}" class="${gf===v?'on':''}">${l}</button>`).join('');}
 function padSet(ch){const s=Object.assign({},pad.settings||{},ch);pad.settings=s;renderPadLobby();padSend({t:'act',a:'set',settings:s});}
 $('pdMode').onclick=e=>{const b=e.target.closest('button');if(b)padSet({mode:b.dataset.v});};
 $('pdTracks').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.cup)padSet({cup:b.dataset.cup});else padSet({track:b.dataset.id});};
+$('pdGfx').onclick=e=>{const b=e.target.closest('button');if(b)padSet({gfx:b.dataset.g});};
 $('pdDiff').onclick=e=>{const b=e.target.closest('button');if(b)padSet({diff:b.dataset.d});};
 $('pdStart').onclick=()=>padSend({t:'act',a:'start'});
 function renderPadRes(){if(!pad||(pad.phase!=='results'&&pad.phase!=='trophy'))return;const lead=pad.leader===pad.id;
