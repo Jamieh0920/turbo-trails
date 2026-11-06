@@ -224,6 +224,7 @@ td.pts{color:#7ee7c6;width:52px}
       <div class="joinRow"><input id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="ghost" id="joinBtn">JOIN ROOM</button></div>
       <div id="onErr"></div></div>
     <button id="startBtn" class="big">START RACE</button>
+    <button class="ghost musicBtn" style="margin-top:8px">🎵 MUSIC ON</button>
     <div class="help" id="helpKeys">
       <b>↑ / W</b> accelerate · <b>↓ / S</b> brake · <b>← → / A D</b> steer<br>
       Hold <b>Space</b> while turning to drift — release for a boost<br>
@@ -242,6 +243,7 @@ td.pts{color:#7ee7c6;width:52px}
     <button class="big" id="resumeBtn">RESUME</button>
     <button class="ghost" id="restartBtn">RESTART RACE</button>
     <button class="ghost hidden" id="recentreBtn">RECENTRE STEERING</button>
+    <button class="ghost musicBtn">🎵 MUSIC ON</button>
     <button class="ghost" id="quitBtn">MAIN MENU</button>
   </div>
 </div>
@@ -275,6 +277,7 @@ td.pts{color:#7ee7c6;width:52px}
       <div class="tvSteps"><div class="lab">SCAN THE CODE WITH YOUR PHONE CAMERA</div><div class="lab">OR GO TO</div><div id="tvUrl"></div><div class="lab">TAP ONLINE · TYPE THIS CODE · JOIN ROOM</div><div id="tvCode">----</div></div></div>
     <div class="lab">PLAYERS</div><div id="tvPlayers"></div>
     <div id="tvInfo"></div>
+    <button class="ghost musicBtn">🎵 MUSIC ON</button>
     <button class="ghost" id="tvExit">EXIT TV MODE</button>
   </div>
 </div>
@@ -824,11 +827,68 @@ function makeKart(cfg,parent){
 }
 
 // ---------- audio ----------
-let AC=null,eng=null,engGain=null,muted=false;
-function initAudio(){if(AC){AC.resume&&AC.resume();return;}
-  try{AC=new (window.AudioContext||window.webkitAudioContext)();eng=AC.createOscillator();eng.type='sawtooth';
-    const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=420;engGain=AC.createGain();engGain.gain.value=0;
-    eng.connect(f);f.connect(engGain);engGain.connect(AC.destination);eng.start();}catch(e){AC=null;}}
+let AC=null,eng=null,engGain=null,muted=false,master=null,musicBus=null,musicOn=true;
+try{musicOn=localStorage.getItem('turboTrails_music')!=='off';}catch(e){}
+function initAudio(){if(AC){AC.resume&&AC.resume();startMusic();return;}
+  try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=1;master.connect(AC.destination);
+    musicBus=AC.createGain();musicBus.gain.value=musicOn?0.55:0;musicBus.connect(master);
+    // engine: saw + square sub, lowpass that opens with revs, "putt" amplitude wobble at firing rate
+    const o1=AC.createOscillator(),o2=AC.createOscillator(),lfo=AC.createOscillator(),lfoG=AC.createGain(),am=AC.createGain(),f=AC.createBiquadFilter();
+    o1.type='sawtooth';o2.type='square';lfo.type='triangle';f.type='lowpass';f.Q.value=4;f.frequency.value=500;
+    am.gain.value=0.75;lfoG.gain.value=0.25;lfo.connect(lfoG);lfoG.connect(am.gain);
+    const g2=AC.createGain();g2.gain.value=0.5;o1.connect(f);o2.connect(g2);g2.connect(f);f.connect(am);engGain=AC.createGain();engGain.gain.value=0;am.connect(engGain);engGain.connect(master);
+    o1.start();o2.start();lfo.start();eng={o1,o2,lfo,f,gear:1,rpm:0.3,shiftT:0,vol:0};}catch(e){AC=null;}
+  startMusic();}
+// gearbox: 5 gears; revs climb through each band, drop on the change-up
+const GEARS=[0,0.2,0.38,0.56,0.76,2];
+function engineSound(spd,boost,on,dt){if(!eng||!AC)return;const t=AC.currentTime,s=clamp(Math.abs(spd)/55,0,1.5);
+  let g=1;while(g<5&&s>=GEARS[g])g++;
+  if(g!==eng.gear){if(g>eng.gear)eng.shiftT=0.16;eng.gear=g;}
+  const lo=GEARS[g-1],hi=Math.min(GEARS[g],1.15),frac=clamp((s-lo)/(hi-lo),0,1);
+  let rpm=0.32+frac*0.68;if(g===5)rpm=0.4+clamp((s-lo)/(0.45),0,1)*0.6;
+  if(eng.shiftT>0){eng.shiftT-=dt;}
+  const target=on?(eng.shiftT>0?0.012:0.034+(boost?0.008:0)):0;
+  const f0=58+rpm*105+(g-1)*9+(boost?18:0);
+  eng.o1.frequency.setTargetAtTime(f0,t,eng.shiftT>0?0.03:0.06);eng.o2.frequency.setTargetAtTime(f0*0.5,t,eng.shiftT>0?0.03:0.06);
+  eng.lfo.frequency.setTargetAtTime(f0*0.25,t,0.06);eng.f.frequency.setTargetAtTime(380+rpm*1100+(boost?400:0),t,0.06);
+  engGain.gain.setTargetAtTime(target,t,eng.shiftT>0?0.02:0.05);}
+function engineOff(){if(engGain&&AC)engGain.gain.setTargetAtTime(0,AC.currentTime,0.03);}
+// ---------- music: little chiptune sequencer ----------
+const NOTE=n=>440*Math.pow(2,(n-69)/12);
+// each song: bpm, root midi, chord roots (semitones from root) + quality, lead pattern (chord-tone index per 8th, -1 rest)
+const SONGS=[
+ {bpm:150,root:60,ch:[[0,'M'],[9,'m'],[5,'M'],[7,'M']],lead:[[0,-1,1,2,3,2,1,-1],[2,-1,3,4,3,-1,2,1]]},
+ {bpm:158,root:62,ch:[[0,'m'],[10,'M'],[8,'M'],[10,'M']],lead:[[2,1,0,-1,2,3,4,-1],[4,-1,3,2,1,-1,0,1]]},
+ {bpm:144,root:57,ch:[[0,'M'],[7,'M'],[9,'m'],[5,'M']],lead:[[0,1,2,-1,4,-1,3,2],[1,-1,1,2,3,-1,-1,4]]},
+ {bpm:166,root:64,ch:[[0,'m'],[5,'m'],[10,'M'],[3,'M']],lead:[[4,3,2,-1,2,1,0,-1],[0,2,4,-1,5,4,2,-1]]},
+ {bpm:128,root:65,ch:[[0,'M'],[4,'m'],[5,'M'],[7,'M']],lead:[[0,-1,-1,2,-1,1,-1,-1],[2,-1,-1,4,-1,3,-1,-1]]}];
+let mus={song:null,step:0,next:0,timer:null,want:4};
+function chordTones(r,q){const t=q==='m'?[0,3,7]:[0,4,7];return i=>{const o=Math.floor(i/3);return r+t[((i%3)+3)%3]+12*o;};}
+function mnote(f,t,d,type,vol,slide){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+d);o.connect(g);g.connect(musicBus);o.start(t);o.stop(t+d+0.02);}
+let noiseBuf=null;function mnoise(t,d,vol,hp){if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate*0.3,AC.sampleRate);const a=noiseBuf.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;}
+  const n=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();n.buffer=noiseBuf;f.type='highpass';f.frequency.value=hp;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+d);
+  n.connect(f);f.connect(g);g.connect(musicBus);n.start(t);n.stop(t+d+0.02);}
+function musicTick(){if(!AC||!mus.song)return;const S=mus.song,spb=60/S.bpm/2;// 8th notes
+  while(mus.next<AC.currentTime+0.15){const t=Math.max(mus.next,AC.currentTime),st=mus.step,bar=Math.floor(st/8)%S.ch.length,b8=st%8,[cr,cq]=S.ch[bar],ct=chordTones(S.root+cr,cq);
+    // drums
+    if(b8===0||b8===4)mnote(150,t,0.16,'sine',0.5,45);
+    if(b8===2||b8===6)mnoise(t,0.12,0.22,1200);
+    mnoise(t,0.04,0.07,7000);
+    // bass: bouncy root / octave
+    const bn=S.root+cr-24+(b8%2?12:0);mnote(NOTE(bn),t,spb*0.9,'triangle',0.32);
+    // lead
+    const pat=S.lead[Math.floor(st/(8*S.ch.length))%2===0?(bar%2):((bar+1)%2)],li=pat[b8];
+    if(li>=0)mnote(NOTE(ct(li)+12),t,spb*1.6,'square',0.06);
+    // soft arp pad
+    if(b8%2===0)mnote(NOTE(ct(b8/2%3)),t,spb*1.8,'triangle',0.05);
+    mus.step++;mus.next+=spb;}}
+function playSong(i){if(!AC)return;mus.want=i;if(mus.song===SONGS[i])return;mus.song=SONGS[i];mus.step=0;mus.next=AC.currentTime+0.1;}
+function startMusic(){if(!AC||padMode)return;if(!mus.timer)mus.timer=setInterval(musicTick,40);if(!mus.song)playSong(mus.want);}
+function setMusic(on){musicOn=on;try{localStorage.setItem('turboTrails_music',on?'on':'off');}catch(e){}
+  if(musicBus)musicBus.gain.setTargetAtTime(on&&!muted?0.55:0,AC.currentTime,0.05);addEventListener('pointerdown',function first(){if(padMode)return;removeEventListener('pointerdown',first);initAudio();},{passive:true});
+document.querySelectorAll('.musicBtn').forEach(b=>b.textContent=on?'🎵 MUSIC ON':'🔇 MUSIC OFF');}
+function applyMute(){if(master)master.gain.setTargetAtTime(muted?0:1,AC.currentTime,0.03);}
 function tone(f1,f2,dur,type,vol){if(!AC||muted)return;try{const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type||'square';
   o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+dur);g.gain.setValueAtTime(vol||0.07,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
   o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+0.02);}catch(e){}}
@@ -843,7 +903,7 @@ addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;co
   if(e.repeat)return;
   if((e.code==='KeyE'||e.code==='KeyX'||e.code==='KeyF')&&player&&state==='race'&&!paused)useItem(player);
   if(e.code==='KeyP'||e.code==='Escape')togglePause();
-  if(e.code==='KeyM')muted=!muted;});
+  if(e.code==='KeyM'){muted=!muted;applyMute();}});
 addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)keys[k]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&!paused&&!net&&(state==='race'||state==='countdown'))togglePause();});
@@ -902,7 +962,7 @@ function startRace(netGrid){
     if(!e.isPlayer)k.baseMax=k.maxSpeed=DIFF[difficulty].ai*e.skill;k.entry=e;k.netId=e.netId;k.ai=!!e.ai;
     k.remote=!!netGrid&&!(e.isPlayer||(e.ai&&amHost()));k.padId=e.padId||null;karts.push(k);});
   players=karts.filter(k=>k.isPlayer);player=players[0];if(tvs)setupPanes();
-  state='countdown';countdown=4.2;lastCount=5;
+  state='countdown';countdown=4.2;lastCount=5;playSong(TRACKS.indexOf(curTrack)%4);
   $('gpTag').textContent=netGrid?(net.gp?'ONLINE '+cupOf(net.gp.cup).name.toUpperCase()+' · RACE '+(net.gp.race+1)+'/'+cupOf(net.gp.cup).tracks.length:'ONLINE · ROOM '+net.room):mode==='gp'?cupOf(gp.cup).name.toUpperCase()+' · RACE '+(gp.race+1)+'/'+cupOf(gp.cup).tracks.length:'';
   showMsg((mode==='gp'?'RACE '+(gp.race+1)+' · ':'')+curTrack.name.toUpperCase(),1.1);$('msg').classList.add('title');raceTime=0;heldSince=null;finishWait=0;
   ['menu','pause','results'].forEach(id=>$(id).classList.add('hidden'));
@@ -1224,15 +1284,14 @@ function update(dt){
 
 function updateHUD(){
   if(tvs&&panes.length){updatePanes();drawMini();
-    if(engGain){const lead=players.reduce((a,b)=>b.speed>a.speed?b:a,players[0]);const on=!muted&&!paused&&(state==='race'||state==='countdown'||state==='finished');engGain.gain.value=on?0.03:0;eng.frequency.value=48+Math.abs(lead.speed)*2.1;}return;}
+    {const hs=players.filter(p=>p.isPlayer||p.human);const sp=hs.length?Math.max(...hs.map(p=>p.speed)):0;engineSound(sp,hs.some(p=>p.boostT>0),!muted&&!paused&&(state==='race'||state==='countdown'||state==='finished'),1/60);}return;}
   const r=player.rank;$('pos').innerHTML=r+'<sup>'+ORD[r]+'</sup>';
   $('lap').textContent='LAP '+clamp(player.lap,1,LAPS)+'/'+LAPS;
   $('time').textContent=fmt(state==='finished'?player.finishTime:raceTime);
   $('item').textContent=player.rollT>0?ICON[['turbo','goo','bolt'][Math.floor(performance.now()/80)%3]]:(player.item?ICON[player.item]:'');
   $('spd').textContent=Math.round(Math.max(0,player.speed)*3);
   drawMini();
-  if(engGain){const on=!muted&&!paused&&(state==='race'||state==='countdown'||state==='finished');
-    engGain.gain.value=on?0.03:0;eng.frequency.value=48+Math.abs(player.speed)*2.1+(player.boostT>0?35:0)+(state==='countdown'&&keys.up?40:0);}
+  engineSound(player.speed+(state==='countdown'&&keys.up?14:0),player.boostT>0,!muted&&!paused&&(state==='race'||state==='countdown'||state==='finished'),1/60);
 }
 
 let last=performance.now();
@@ -1243,7 +1302,7 @@ function loop(now){requestAnimationFrame(loop);const dt=Math.min(0.05,(now-last)
     snow.position.set(camera.position.x,0,camera.position.z);}
   if(state==='garage'){if(gDrag===null)gRot+=dt*0.35;if(gKart){gKart.group.rotation.y=gRot;const f=0.75+Math.random()*0.5;gKart.flame.scale.set(1,f,1);}renderer.render(gScene,gCam);return;}
   if(padMode&&state!=='garage')return;
-  if(!paused)update(dt);else if(engGain)engGain.gain.value=0;
+  if(!paused)update(dt);else engineOff();
   if(padMode)return;
   if(tvs&&panes.length&&(state==='countdown'||state==='race'||state==='finished'))renderPanes();else renderer.render(scene,camera);}
 requestAnimationFrame(loop);
@@ -1364,7 +1423,7 @@ function netTick(dt){if(!net||!net.inRace)return;netAcc+=dt;if(netAcc<0.066)retu
   if(arr.length)nsend({t:'s',k:arr});}
 function adoptAI(){for(const k of karts)if(k.ai&&k.remote){k.remote=false;if(k.net){k.pos.set(k.net.x,0,k.net.z);k.h=k.net.h;k.speed=k.net.sp;}k.maxLap=Math.max(k.maxLap,k.lap);k.lane=k.laneTarget=0;}}
 function showLobby(){state='lobby';['menu','results','hud','touch','pause','trophy','garage'].forEach(id=>$(id).classList.add('hidden'));
-  $('lobby').classList.remove('hidden');$('againBtn').classList.remove('hidden');if(engGain)engGain.gain.value=0;renderLobby();}
+  $('lobby').classList.remove('hidden');$('againBtn').classList.remove('hidden');engineOff();renderLobby();}
 function renderLobby(){if(!net||!net.id||state!=='lobby')return;const host=amHost(),s=net.settings||{track:curTrack.id,laps:3,ai:true};
   $('lbCode').textContent=net.room;$('lbLink').value=location.origin+location.pathname+'?room='+net.room;
   const cpu=s.ai?6-net.players.length:0;
@@ -1492,7 +1551,7 @@ function tvStart(){const t=tvs.settings;difficulty=t.diff;$('tvLobby').classList
   keepAwake();tvBroadcast();}
 function toTvLobby(){clearRace();clearPanes();player=null;players=[];paused=false;gp=null;LAPS=3;
   ['pause','results','hud','touch','trophy','menu'].forEach(id=>$(id).classList.add('hidden'));showTvLobby();}
-function showTvLobby(){state='tvlobby';$('menu').classList.add('hidden');$('tvLobby').classList.remove('hidden');if(engGain)engGain.gain.value=0;
+function showTvLobby(){state='tvlobby';$('menu').classList.add('hidden');$('tvLobby').classList.remove('hidden');engineOff();
   const url=location.origin+'/?pad='+tvs.room;$('tvCode').textContent=tvs.room;$('tvUrl').textContent=location.host;
   loadQR(()=>{try{const q=qrcode(0,'M');q.addData(url);q.make();$('tvQR').innerHTML=q.createSvgTag({cellSize:6,margin:2,scalable:true});}catch(e){$('tvQR').textContent='';}});
   renderTvLobby();tvBroadcast();}
@@ -1601,6 +1660,7 @@ function showBest(){if(mode==='gp'){let b=null;try{b=JSON.parse(localStorage.get
   let t=null;try{t=parseFloat(localStorage.getItem(bestKey()));}catch(e){}
   $('best').textContent=t?'Your best on '+curTrack.name+' ('+difficulty+'): '+fmt(t):'';}
 document.querySelectorAll('#diff button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;document.querySelectorAll('#diff button').forEach(x=>x.classList.toggle('on',x===b));showBest();});
+document.querySelectorAll('.musicBtn').forEach(b=>b.onclick=()=>{initAudio();setMusic(!musicOn);});setMusic(musicOn);
 $('startBtn').onclick=()=>{initAudio();if(mode==='gp')startGP();else startRace();};
 $('againBtn').onclick=()=>{initAudio();
   if(net){if(!amHost())return;const g=net.gp;
@@ -1623,7 +1683,7 @@ renderCup();
 $('restartBtn').onclick=()=>{startRace();};
 $('resumeBtn').onclick=()=>togglePause();
 $('pauseBtn').onclick=()=>togglePause();
-function toMenu(){clearRace();player=null;paused=false;state='menu';gp=null;LAPS=3;$('lobby').classList.add('hidden');$('againBtn').classList.remove('hidden');['pause','results','hud','touch','trophy'].forEach(id=>$(id).classList.add('hidden'));$('menu').classList.remove('hidden');showBest();if(engGain)engGain.gain.value=0;}
+function toMenu(){playSong(4);clearRace();player=null;paused=false;state='menu';gp=null;LAPS=3;$('lobby').classList.add('hidden');$('againBtn').classList.remove('hidden');['pause','results','hud','touch','trophy'].forEach(id=>$(id).classList.add('hidden'));$('menu').classList.remove('hidden');showBest();engineOff();}
 $('quitBtn').onclick=()=>tvs?toTvLobby():net?leaveOnline():toMenu();$('menuBtn').onclick=()=>tvs?toTvLobby():net?leaveOnline():toMenu();
 $('tvStartBtn').onclick=()=>startTv();$('tvExit').onclick=()=>exitTv();
 if(!initPadFromUrl())initOnlineFromUrl();
