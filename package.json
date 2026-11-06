@@ -1,0 +1,13 @@
+{
+  "name": "turbo-trails-online",
+  "version": "1.0.0",
+  "description": "Turbo Trails - online kart racing with friends",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "express": "^4.21.0",
+    "three": "0.128.0",
+    "ws": "^8.18.0"
+  }
+}
