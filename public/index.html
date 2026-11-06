@@ -112,6 +112,9 @@ body.tvmode #mini{top:50%;transform:translateY(-50%);width:clamp(90px,18vmin,170
 #padSteerL,#padSteerR{width:min(30vmin,140px);height:min(30vmin,140px);font-size:44px}
 .pbl{width:min(34vmin,150px);height:min(34vmin,150px);font-size:24px}.pbm{width:min(24vmin,104px);height:min(24vmin,104px);font-size:18px}.pbs{width:min(20vmin,88px);height:min(20vmin,88px);font-size:14px}
 #padResBtns{display:flex;flex-direction:column;gap:8px}
+#padTiltBtn{width:48px;height:48px;border-radius:14px;border:2px solid rgba(255,255,255,.7);background:rgba(0,0,0,.25);color:#fff;font-size:22px}
+#padTiltPanel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,88vw);background:linear-gradient(160deg,#1d2260,#141838);border:3px solid rgba(255,255,255,.15);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center;z-index:5;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#padTiltPanel .ghost,#padTiltPanel .big{margin:0}.sensSeg{align-self:center}
 #onRow .big{margin:0}
 #tiltMsg{min-height:0;font-size:12px;font-weight:800;color:#ffd23f}
 #tiltMsg:empty{display:none}
@@ -286,7 +289,8 @@ td.pts{color:#7ee7c6;width:52px}
   <div id="padLobby" class="padScreen hidden">
     <div class="lab">CONNECTED · <span id="padMe"></span></div>
     <div id="padPlayers"></div>
-    <div class="lab">STEERING</div><div class="seg" id="padSteer"><button data-v="buttons">Buttons</button><button data-v="tilt">Tilt 📱</button></div><div id="padTiltMsg"></div>
+    <div class="lab">STEERING</div><div class="seg" id="padSteer"><button data-v="buttons">Buttons</button><button data-v="tilt">Tilt 📱</button></div>
+    <div class="seg sensSeg hidden" id="padSens"><button data-v="0.6">Low</button><button data-v="0.44">Medium</button><button data-v="0.3">High</button></div><div id="padTiltMsg"></div>
     <div id="padHost" class="hidden">
       <div class="lab">RACE</div><div class="seg" id="pdMode"></div>
       <div id="pdTracks"></div>
@@ -297,7 +301,11 @@ td.pts{color:#7ee7c6;width:52px}
     <button class="ghost" id="padLeave">LEAVE</button>
   </div>
   <div id="padCtl" class="hidden">
-    <div class="padTop"><div id="padPos"></div><div id="padItem"></div><button id="padPause">❚❚</button></div>
+    <div class="padTop"><div id="padPos"></div><div id="padItem"></div><button id="padTiltBtn" class="hidden" aria-label="Tilt settings">⚙</button><button id="padPause">❚❚</button></div>
+    <div id="padTiltPanel" class="hidden"><div class="lab">TILT SENSITIVITY</div>
+      <div class="seg sensSeg" id="padSens2"><button data-v="0.6">Low</button><button data-v="0.44">Medium</button><button data-v="0.3">High</button></div>
+      <button class="ghost" id="padRecentre">🎯 RECENTRE STEERING</button><div class="padNote" style="padding:0;font-size:12px">Hold the phone how you like, then tap Recentre</div>
+      <button class="big" id="padTiltDone">DONE</button></div>
     <div id="padCd" class="hidden">GET READY…</div>
     <div class="padLeft"><button data-pk="left" id="padSteerL">◀</button><button data-pk="right" id="padSteerR">▶</button></div>
     <div class="padRight"><button data-pk="brake" class="pbs">BRAKE</button><button data-pk="item" class="pbm">ITEM</button><button data-pk="drift" class="pbl">DRIFT</button></div>
@@ -929,7 +937,8 @@ function setTiltMsg(t){$('tiltMsg').textContent=t;const e=$('padTiltMsg');if(e)e
 function saveTilt(){try{localStorage.setItem('turboTrails_tilt',JSON.stringify({on:tilt.on,max:tilt.max}));}catch(e){}}
 function renderTilt(){if(!$('tiltRow'))return;$('tiltRow').classList.toggle('hidden',!(touchMode&&TILT_OK));
   document.querySelectorAll('#steerSel button,#padSteer button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='tilt')===tilt.on));
-  $('sensSel').classList.toggle('hidden',!tilt.on);document.querySelectorAll('#sensSel button').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.v-tilt.max)<0.01));
+  $('sensSel').classList.toggle('hidden',!tilt.on);document.querySelectorAll('#sensSel button,#padSens button,#padSens2 button').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.v-tilt.max)<0.01));
+  if($('padSens')){$('padSens').classList.toggle('hidden',!tilt.on);$('padTiltBtn').classList.toggle('hidden',!tilt.on);if(!tilt.on)$('padTiltPanel').classList.add('hidden');}
   $('steerPad').style.visibility=tilt.on?'hidden':'';$('recentreBtn').classList.toggle('hidden',!tilt.on);}
 async function enableTilt(){setTiltMsg('');
   try{if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){const r=await DeviceMotionEvent.requestPermission();if(r!=='granted')throw new Error('denied');}}
@@ -939,6 +948,10 @@ async function enableTilt(){setTiltMsg('');
   setTimeout(()=>{if(tilt.on&&!tilt.ok){tilt.on=false;saveTilt();renderTilt();setTiltMsg('Tilt steering isn’t available on this device or browser, so it’s back on buttons.');}},1800);}
 $('padSteer').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v==='tilt')enableTilt();else{tilt.on=false;saveTilt();renderTilt();setTiltMsg('');}};
 $('steerSel').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v==='tilt')enableTilt();else{tilt.on=false;saveTilt();renderTilt();setTiltMsg('');}};
+for(const id of ['padSens','padSens2'])$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;tilt.max=+b.dataset.v;saveTilt();renderTilt();};
+$('padTiltBtn').onclick=()=>$('padTiltPanel').classList.toggle('hidden');
+$('padTiltDone').onclick=()=>$('padTiltPanel').classList.add('hidden');
+$('padRecentre').onclick=()=>{tilt.center=tilt.raw;$('padRecentre').textContent='CENTRED ✓';setTimeout(()=>$('padRecentre').textContent='🎯 RECENTRE STEERING',1200);};
 $('sensSel').onclick=e=>{const b=e.target.closest('button');if(!b)return;tilt.max=+b.dataset.v;saveTilt();renderTilt();};
 $('recentreBtn').onclick=()=>{tilt.center=tilt.raw;$('recentreBtn').textContent='CENTRED ✓';setTimeout(()=>$('recentreBtn').textContent='RECENTRE STEERING',1200);};
 if(tilt.want&&touchMode&&TILT_OK){if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
