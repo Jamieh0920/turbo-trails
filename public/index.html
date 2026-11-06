@@ -261,12 +261,12 @@ const touchMode=matchMedia('(pointer:coarse)').matches||('ontouchstart' in windo
 if(touchMode){document.body.classList.add('touch');$('helpKeys').innerHTML='Steer with <b>◀ ▶</b> — your kart accelerates automatically<br>Hold <b>DRIFT</b> while turning, release for a boost<br>Tap <b>ITEM</b> to use what you picked up<br>Hit <b>ramps</b> for big air · <b>orange arrows</b> = speed burst';}
 
 // ---------- renderer / scene ----------
-const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});
+const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true,logarithmicDepthBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x8fd3ff);
 scene.fog=new THREE.Fog(0x8fd3ff,240,950);
-const camera=new THREE.PerspectiveCamera(70,1,0.1,2500);
+const camera=new THREE.PerspectiveCamera(70,1,0.3,2500);
 function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
 addEventListener('resize',resize);resize();
 const hemi=new THREE.HemisphereLight(0xffffff,0x4a7a3a,0.95);scene.add(hemi);
@@ -315,8 +315,10 @@ function strip(fa,fb,colorFn,glow){
   g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
   g.computeVertexNormals();
   const mat=glow?new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}):new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+  mat.polygonOffset=true;mat.polygonOffsetFactor=-(++stripLayer);mat.polygonOffsetUnits=-(stripLayer*2);
   const m=new THREE.Mesh(g,mat);world.add(m);return m;
 }
+let stripLayer=0;
 function textTex(text,w,h,bg,fg){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
   g.fillStyle=bg;g.fillRect(0,0,w,h);const s=h/4;for(let x=0;x<w;x+=s){g.fillStyle=((x/s)|0)%2?'#fff':'#111';g.fillRect(x,0,s,s*0.6);g.fillRect(x+s,h-s*0.6,s,s*0.6);}
   g.fillStyle=fg;g.font=`900 ${h*0.42}px Bungee, Arial`;g.textAlign='center';g.textBaseline='middle';g.fillText(text,w/2,h/2+2);return new THREE.CanvasTexture(c);}
@@ -368,7 +370,7 @@ function buildScenery(def){
 
 function buildTrack(def){
   if(world){scene.remove(world);disposeGroup(world);}
-  world=new THREE.Group();scene.add(world);curTrack=def;clouds=[];snow=null;
+  world=new THREE.Group();scene.add(world);curTrack=def;clouds=[];snow=null;stripLayer=0;
   scene.background=new THREE.Color(def.sky);scene.fog=new THREE.Fog(def.sky,def.fog[0],def.fog[1]);
   hemi.color.setHex(def.hemi[0]);hemi.groundColor.setHex(def.hemi[1]);hemi.intensity=def.hemi[2];sun.intensity=def.sun;
   const curve=new THREE.CatmullRomCurve3(def.pts.map(p=>new V3(p[0]*1.6,0,p[1]*1.6)),true,'centripetal');
@@ -878,8 +880,10 @@ function update(dt){
   if(state==='menu'||state==='results'||state==='lobby'){
     const a=performance.now()/1000*0.07;camera.fov=60;camera.updateProjectionMatrix();
     camera.position.set(center.x+Math.cos(a)*camR,camR*0.6,center.z+Math.sin(a)*camR);camera.lookAt(center);
+    for(const c of clouds)c.visible=false;
     if(state==='results'){raceTime+=dt;for(const k of karts){if(k.remote)netInterp(k,dt);else stepKart(k,aiInput(k,dt),dt);syncMesh(k,dt);}netTick(dt);}
     return;}
+  if(clouds.length&&!clouds[0].visible)for(const c of clouds)c.visible=true;
   if(state==='countdown'){
     countdown-=dt;const c=Math.ceil(countdown);
     if(c!==lastCount&&c>0&&c<=3){lastCount=c;$('msg').classList.remove('title');showMsg(String(c),0.9);sfx.count();}
