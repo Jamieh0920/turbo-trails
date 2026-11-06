@@ -34,7 +34,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:Nu
 #touch button{width:84px;height:84px;border-radius:50%;border:3px solid rgba(255,255,255,.8);background:rgba(20,22,50,.45);color:#fff;font-family:Bungee,sans-serif;font-size:26px;touch-action:none}
 #touch button.sm{width:66px;height:66px;font-size:11px}
 #touch button.on{background:rgba(255,210,63,.55)}
-body.touch #speed{bottom:auto;top:110px;right:22px;font-size:26px}
+body.touch #speed{bottom:118px;right:26px;font-size:24px}
 .panel{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(15,18,50,.35),rgba(8,10,30,.75));padding:16px;overflow:auto}
 .card{width:min(460px,100%);background:linear-gradient(160deg,#1d2260,#141838);border:3px solid rgba(255,255,255,.12);border-radius:28px;padding:28px 26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);text-align:center}
 h1{font-family:Bungee,sans-serif;font-size:58px;line-height:.95;margin:0 0 6px;background:linear-gradient(180deg,#ffe066,#ff7b39 60%,#ff3b5c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 #0c0f2a)}
@@ -67,6 +67,9 @@ tr.me td{background:rgba(255,210,63,.14)}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:middle}
 #resTitle{font-size:44px}
 #onRow .big{margin:0}
+#tiltMsg{min-height:0;font-size:12px;font-weight:800;color:#ffd23f}
+#tiltMsg:empty{display:none}
+#sensSel button{padding:7px 12px;font-size:13px}
 .joinRow{display:flex;gap:8px;width:100%}.joinRow .ghost{margin:0;flex:1}
 #joinCode,.shareRow input{flex:0 0 120px;min-width:0;background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.2);border-radius:14px;color:#fff;font:400 22px Bungee,sans-serif;text-align:center;letter-spacing:4px;padding:8px;outline:none;text-transform:uppercase;user-select:text;-webkit-user-select:text}
 #joinCode:focus{border-color:#ffd23f}
@@ -145,7 +148,7 @@ td.pts{color:#7ee7c6;width:52px}
 </div>
 
 <div id="touch" class="hidden">
-  <div class="pad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
+  <div class="pad" id="steerPad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
   <div class="pad"><button class="sm" data-k="down">BRAKE</button><button class="sm" data-k="item">ITEM</button><button data-k="drift" style="font-size:15px">DRIFT</button></div>
 </div>
 
@@ -161,6 +164,10 @@ td.pts{color:#7ee7c6;width:52px}
     <div class="row"><span class="lab">DIFFICULTY</span>
       <div class="seg" id="diff"><button data-d="easy">Easy</button><button data-d="normal" class="on">Normal</button><button data-d="hard">Hard</button></div>
     </div>
+    <div class="row hidden" id="tiltRow"><span class="lab">STEERING</span>
+      <div class="seg" id="steerSel"><button data-v="buttons" class="on">Buttons</button><button data-v="tilt">Tilt 📱</button></div>
+      <div class="seg hidden" id="sensSel"><button data-v="0.6">Low</button><button data-v="0.44" class="on">Medium</button><button data-v="0.3">High</button></div>
+      <div id="tiltMsg"></div></div>
     <div class="row hidden" id="onRow"><span class="lab">RACE WITH FRIENDS</span>
       <button class="big" id="createBtn">CREATE A ROOM</button>
       <div class="joinRow"><input id="joinCode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="ghost" id="joinBtn">JOIN ROOM</button></div>
@@ -183,6 +190,7 @@ td.pts{color:#7ee7c6;width:52px}
     <h2>PAUSED</h2>
     <button class="big" id="resumeBtn">RESUME</button>
     <button class="ghost" id="restartBtn">RESTART RACE</button>
+    <button class="ghost hidden" id="recentreBtn">RECENTRE STEERING</button>
     <button class="ghost" id="quitBtn">MAIN MENU</button>
   </div>
 </div>
@@ -804,8 +812,38 @@ function updateIdx(k){let best=k.idx,bd=1e18;
   if(prev>N*0.75&&best<N*0.25){k.lap++;onLap(k);}else if(prev<N*0.25&&best>N*0.75)k.lap--;}
 
 const NOIN={throttle:0,steer:0,drift:false};
+// ---------- tilt steering (phones & tablets) ----------
+const TILT_OK=true;
+const tilt={on:false,ok:false,raw:0,center:0,max:0.44};
+try{const t=JSON.parse(localStorage.getItem('turboTrails_tilt')||'null');if(t){tilt.max=+t.max||0.44;tilt.want=!!t.on;}}catch(e){}
+function onMotion(e){const g=e.accelerationIncludingGravity;if(!g||g.x==null||g.y==null)return;
+  const so=screen.orientation&&typeof screen.orientation.angle==='number'?screen.orientation.angle:(+window.orientation||0),a=so*Math.PI/180;
+  const sx=g.x*Math.cos(a)-g.y*Math.sin(a),sy=g.x*Math.sin(a)+g.y*Math.cos(a);
+  if(Math.hypot(sx,sy)<1.5)return;const ang=Math.atan2(sx,sy);
+  if(!tilt.ok){tilt.raw=ang;tilt.center=ang;}tilt.raw+=wrapA(ang-tilt.raw)*0.35;tilt.ok=true;}
+function tiltSteer(){if(!tilt.on||!tilt.ok)return 0;let v=wrapA(tilt.raw-tilt.center)/tilt.max;const dz=0.08;
+  v=Math.abs(v)<dz?0:(Math.abs(v)-dz)/(1-dz)*Math.sign(v);return clamp(v,-1,1);}
+function saveTilt(){try{localStorage.setItem('turboTrails_tilt',JSON.stringify({on:tilt.on,max:tilt.max}));}catch(e){}}
+function renderTilt(){if(!$('tiltRow'))return;$('tiltRow').classList.toggle('hidden',!(touchMode&&TILT_OK));
+  document.querySelectorAll('#steerSel button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='tilt')===tilt.on));
+  $('sensSel').classList.toggle('hidden',!tilt.on);document.querySelectorAll('#sensSel button').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.v-tilt.max)<0.01));
+  $('steerPad').style.visibility=tilt.on?'hidden':'';$('recentreBtn').classList.toggle('hidden',!tilt.on);}
+async function enableTilt(){$('tiltMsg').textContent='';
+  try{if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){const r=await DeviceMotionEvent.requestPermission();if(r!=='granted')throw new Error('denied');}}
+  catch(e){tilt.on=false;$('tiltMsg').textContent='Motion access wasn’t allowed, so steering stays on buttons. You can allow it in your browser settings.';renderTilt();return;}
+  if(!tilt.listening){addEventListener('devicemotion',onMotion);tilt.listening=true;}
+  tilt.on=true;saveTilt();renderTilt();
+  setTimeout(()=>{if(tilt.on&&!tilt.ok){tilt.on=false;saveTilt();renderTilt();$('tiltMsg').textContent='Tilt steering isn’t available on this device or browser, so it’s back on buttons.';}},1800);}
+$('steerSel').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.v==='tilt')enableTilt();else{tilt.on=false;saveTilt();renderTilt();$('tiltMsg').textContent='';}};
+$('sensSel').onclick=e=>{const b=e.target.closest('button');if(!b)return;tilt.max=+b.dataset.v;saveTilt();renderTilt();};
+$('recentreBtn').onclick=()=>{tilt.center=tilt.raw;$('recentreBtn').textContent='CENTRED ✓';setTimeout(()=>$('recentreBtn').textContent='RECENTRE STEERING',1200);};
+if(tilt.want&&touchMode&&TILT_OK){if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
+    const once=()=>{removeEventListener('pointerup',once,true);if(!tilt.on)enableTilt();};addEventListener('pointerup',once,true);}else enableTilt();}
+renderTilt();
+
 function playerInput(){let throttle=0;if(keys.up||(touchMode&&!keys.down))throttle=1;if(keys.down)throttle=-1;
-  return {throttle,steer:(keys.left?1:0)-(keys.right?1:0),drift:keys.drift};}
+  const b=(keys.left?1:0)-(keys.right?1:0);
+  return {throttle,steer:b!==0?b:tiltSteer(),drift:keys.drift};}
 function aiInput(k,dt){
   if(!k.isPlayer&&state!=='countdown'){if(k.speed<5&&k.spinT<=0&&!k.air)k.stuckT=(k.stuckT||0)+dt;else k.stuckT=0;
     if(k.stuckT>1.8){k.stuckT=0;const i=(k.idx+6)%N;k.pos.copy(at(i,0,0));k.pos.y=0;k.y=EL[i];k.idx=i;k.h=Math.atan2(T[i].x,T[i].z);k.speed=10;k.lane=k.laneTarget=0;}}
@@ -1010,7 +1048,7 @@ function update(dt){
     return;}
   if(clouds.length&&!clouds[0].visible){for(const c of clouds)c.visible=true;if(scene.fog&&curTrack){scene.fog.near=curTrack.fog[0];scene.fog.far=curTrack.fog[1];}}
   if(state==='countdown'){
-    countdown-=dt;const c=Math.ceil(countdown);
+    countdown-=dt;const c=Math.ceil(countdown);if(tilt.on&&tilt.ok)tilt.center=tilt.raw;
     if(c!==lastCount&&c>0&&c<=3){lastCount=c;$('msg').classList.remove('title');showMsg(String(c),0.9);sfx.count();}
     const inp=playerInput();if(inp.throttle>0){if(heldSince===null)heldSince=countdown;}else heldSince=null;
     if(countdown<=0){state='race';showMsg('GO!',0.9);sfx.go();
