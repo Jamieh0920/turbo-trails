@@ -850,7 +850,7 @@ function engineSound(spd,boost,on,dt){if(!eng||!AC)return;const t=AC.currentTime
   const lo=GEARS[g-1],hi=Math.min(GEARS[g],1.15),frac=clamp((s-lo)/(hi-lo),0,1);
   let rpm=0.32+frac*0.68;if(g===5)rpm=0.4+clamp((s-lo)/(0.45),0,1)*0.6;
   if(eng.shiftT>0){eng.shiftT-=dt;}
-  const target=on?(eng.shiftT>0?0.012:0.034+(boost?0.008:0)):0;
+  const target=on?(eng.shiftT>0?0.022:0.065+(boost?0.012:0)):0;
   const f0=58+rpm*105+(g-1)*9+(boost?18:0);
   eng.o1.frequency.setTargetAtTime(f0,t,eng.shiftT>0?0.03:0.06);eng.o2.frequency.setTargetAtTime(f0*0.5,t,eng.shiftT>0?0.03:0.06);
   eng.lfo.frequency.setTargetAtTime(f0*0.25,t,0.06);eng.f.frequency.setTargetAtTime(380+rpm*1100+(boost?400:0),t,0.06);
@@ -872,7 +872,7 @@ function mnote(f,t,d,type,vol,slide){const o=AC.createOscillator(),g=AC.createGa
 let noiseBuf=null;function mnoise(t,d,vol,hp){if(!noiseBuf){noiseBuf=AC.createBuffer(1,AC.sampleRate*0.3,AC.sampleRate);const a=noiseBuf.getChannelData(0);for(let i=0;i<a.length;i++)a[i]=Math.random()*2-1;}
   const n=AC.createBufferSource(),f=AC.createBiquadFilter(),g=AC.createGain();n.buffer=noiseBuf;f.type='highpass';f.frequency.value=hp;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0008,t+d);
   n.connect(f);f.connect(g);g.connect(musicBus);n.start(t);n.stop(t+d+0.02);}
-function musicTick(){if(!AC||!mus.song)return;const S=mus.song,spb=60/S.bpm/2;// 8th notes
+function musicTick(){if(!AC||!mus.song)return;const S=mus.song,spb=60/(S.bpm*(mus.fast||1))/2;// 8th notes
   while(mus.next<AC.currentTime+0.15){const t=Math.max(mus.next,AC.currentTime),st=mus.step,bar=Math.floor(st/8)%S.ch.length,b8=st%8,[cr,cq]=S.ch[bar],ct=chordTones(S.root+cr,cq);
     // drums
     if(b8===0||b8===4)mnote(150,t,0.16,'sine',0.5,45);
@@ -886,11 +886,22 @@ function musicTick(){if(!AC||!mus.song)return;const S=mus.song,spb=60/S.bpm/2;//
     // soft arp pad
     if(b8%2===0)mnote(NOTE(ct(b8/2%3)),t,spb*1.8,'triangle',0.05);
     mus.step++;mus.next+=spb;}}
-function playSong(i){if(!AC)return;mus.want=i;if(mus.song===SONGS[i])return;mus.song=SONGS[i];mus.step=0;mus.next=AC.currentTime+0.1;}
+function playSong(i){if(!AC)return;mus.want=i;mus.fast=1;if(mus.song===SONGS[i])return;mus.song=SONGS[i];mus.step=0;mus.next=AC.currentTime+0.1;}
 function startMusic(){if(!AC||padMode)return;if(!mus.timer)mus.timer=setInterval(musicTick,40);if(!mus.song)playSong(mus.want);}
 function setMusic(on){musicOn=on;try{localStorage.setItem('turboTrails_music',on?'on':'off');}catch(e){}
   if(musicBus)musicBus.gain.setTargetAtTime(on&&!muted?0.55:0,AC.currentTime,0.05);addEventListener('pointerdown',function first(){if(padMode)return;removeEventListener('pointerdown',first);initAudio();},{passive:true});
 document.querySelectorAll('.musicBtn').forEach(b=>b.textContent=on?'🎵 MUSIC ON':'🔇 MUSIC OFF');}
+let jingleT=0;
+function finalLapJingle(){if(!AC||muted)return;const now=AC.currentTime;if(now<jingleT)return;jingleT=now+2.5;
+  if(musicBus&&musicOn){musicBus.gain.setTargetAtTime(0.12,now,0.03);musicBus.gain.setTargetAtTime(0.55,now+1.5,0.25);}
+  mus.fast=1.1;// final lap: music speeds up a touch
+  const t=now+0.03,q=0.11,pl=(n,st,d,ty,v)=>{const o=AC.createOscillator(),g=AC.createGain(),a=t+st;o.type=ty;o.frequency.setValueAtTime(NOTE(n),a);
+    g.gain.setValueAtTime(0.0001,a);g.gain.linearRampToValueAtTime(v,a+0.01);g.gain.setValueAtTime(v,a+d*0.7);g.gain.exponentialRampToValueAtTime(0.0008,a+d);o.connect(g);g.connect(master);o.start(a);o.stop(a+d+0.02);};
+  // da-da-da-DAAA ... da-DA-DAAAA!
+  [[67,0],[72,1],[76,2],[79,3.2],[76,4.6],[79,5.4]].forEach(([n,i])=>{pl(n,i*q,q*0.95,'square',0.09);pl(n-12,i*q,q*0.95,'triangle',0.12);});
+  [84,79,76,72].forEach((n,i)=>pl(n,6.4*q,0.75,i?'triangle':'square',i?0.07:0.09));
+  pl(48,6.4*q,0.75,'triangle',0.2);
+  for(let i=0;i<4;i++){const n=AC.createBufferSource();if(!noiseBuf)mnoise(t,0.01,0.0001,9000);n.buffer=noiseBuf;const f=AC.createBiquadFilter(),g=AC.createGain(),a=t+(i<3?i*q:6.4*q);f.type='highpass';f.frequency.value=5000;g.gain.setValueAtTime(0.1,a);g.gain.exponentialRampToValueAtTime(0.0008,a+(i<3?0.08:0.5));n.connect(f);f.connect(g);g.connect(master);n.start(a);n.stop(a+0.55);}}
 function applyMute(){if(master)master.gain.setTargetAtTime(muted?0:1,AC.currentTime,0.03);}
 function tone(f1,f2,dur,type,vol){if(!AC||muted)return;try{const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;o.type=type||'square';
   o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+dur);g.gain.setValueAtTime(vol||0.07,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
@@ -978,7 +989,7 @@ function onLap(k){
   if(k.lap===1){k.lapStart=raceTime;return;}
   const lt=raceTime-k.lapStart;k.lapStart=raceTime;if(k.bestLap==null||lt<k.bestLap)k.bestLap=lt;
   if(k.lap>LAPS){if(!k.finished){k.finished=true;k.finishTime=raceTime;if(net&&!k.remote)nsend({t:'fin',id:k.netId,time:+raceTime.toFixed(3)});if(k.isPlayer){if(tvs)tvFinished(k);else playerFinished();}}return;}
-  if(k.isPlayer){kmsg(k,k.lap===LAPS?'FINAL LAP!':'LAP '+k.lap,1.6);sfx.lap();}
+  if(k.isPlayer){kmsg(k,k.lap===LAPS?'FINAL LAP!':'LAP '+k.lap,1.6);if(k.lap===LAPS)finalLapJingle();else sfx.lap();}
 }
 function updateIdx(k){let best=k.idx,bd=1e18;
   for(let o=-20;o<=40;o++){const i=(k.idx+o+N)%N;const dx=P[i].x-k.pos.x,dz=P[i].z-k.pos.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=i;}}
