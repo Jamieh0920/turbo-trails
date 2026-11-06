@@ -353,7 +353,7 @@ function textTex(text,w,h,bg,fg){const c=document.createElement('canvas');c.widt
   g.fillStyle=bg;g.fillRect(0,0,w,h);const s=h/4;for(let x=0;x<w;x+=s){g.fillStyle=((x/s)|0)%2?'#fff':'#111';g.fillRect(x,0,s,s*0.6);g.fillRect(x+s,h-s*0.6,s,s*0.6);}
   g.fillStyle=fg;g.font=`900 ${h*0.42}px Bungee, Arial`;g.textAlign='center';g.textBaseline='middle';g.fillText(text,w/2,h/2+2);return new THREE.CanvasTexture(c);}
 function outside(count,minD,maxD,clear){const pts=[],c2=(WALL+clear)**2;
-  for(let a=0;a<count*6&&pts.length<count;a++){const i=(Math.random()*N)|0,side=Math.random()<.5?-1:1;const p=at(i,side*(WALL+minD+Math.random()*(maxD-minD)),0);
+  for(let a=0;a<count*6&&pts.length<count;a++){const i=(Math.random()*N)|0,side=Math.random()<.5?-1:1;const p=at(i,side*(WALL+minD+Math.random()*(maxD-minD)),0);p.y=0;
     let ok=true;for(let j=0;j<N;j+=3){if(P[j].distanceToSquared(p)<c2){ok=false;break;}}if(ok)pts.push(p);}return pts;}
 function inst(geo,mat,list){const im=new THREE.InstancedMesh(geo,mat,Math.max(1,list.length));const m=new THREE.Matrix4(),q=new THREE.Quaternion(),s=new V3();
   list.forEach((o,i)=>{q.setFromEuler(new THREE.Euler(o.rx||0,o.ry||0,o.rz||0,'YXZ'));s.set(o.sx||o.s||1,o.sy||o.s||1,o.sz||o.s||1);m.compose(new V3(o.x,o.y,o.z),q,s);im.setMatrixAt(i,m);});
@@ -382,7 +382,7 @@ function buildScenery(def){
     const roof=lamb(0x5c626b);
     const tower=(x,z,w,d,h,ry,y0)=>{y0=y0||0;const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bmat(Math.max(w,d),h));b.position.set(x,y0+h/2,z);b.rotation.y=ry;world.add(b);
       const r=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.8,d+0.6),roof);r.position.set(x,y0+h+0.4,z);r.rotation.y=ry;world.add(r);return b;};
-    outside(Math.round(170*N/800),10,110,18).forEach(p=>{const w=12+R()*16,d=12+R()*16,h=25+R()*R()*150;tower(p.x,p.z,w,d,h,R()*Math.PI);
+    outside(Math.round(170*N/800),14,110,25).forEach(p=>{const w=12+R()*16,d=12+R()*16,h=25+R()*R()*150;tower(p.x,p.z,w,d,h,R()*Math.PI);
       if(R()<0.25){const ant=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.3,10,6),lamb(0xdddddd));ant.position.set(p.x,h+5,p.z);world.add(ant);}});
     // buildings built over the elevated track: drive straight through them
     const farFrom=(q,i,r)=>{for(let j=0;j<N;j+=2){if(Math.min(Math.abs(j-i),N-Math.abs(j-i))<70)continue;const dx=P[j].x-q.x,dz=P[j].z-q.z;if(dx*dx+dz*dz<r*r)return false;}return true;};
