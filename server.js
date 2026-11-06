@@ -6,7 +6,8 @@ const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
 const MAX_PLAYERS = 6;
-const RELAY = new Set(['s', 'box', 'goo', 'goohit', 'bolt', 'bolthit', 'fin', 'set']);
+const RELAY = new Set(['s', 'box', 'goo', 'goohit', 'bolt', 'bolthit', 'fin', 'set', 'gpscore', 'gpend']);
+const HOST_ONLY = new Set(['set', 'gpscore', 'gpend']);
 
 const app = express();
 app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build'), { maxAge: '7d' }));
@@ -69,8 +70,9 @@ wss.on('connection', (ws) => {
     if (!room) return;
     const me = room.players.get(id);
     if (m.t === 'cfg') { me.name = uniqueName(room, cleanName(m.name), id); me.cfg = cleanCfg(m.cfg); broadcast(room, lobbyMsg(room)); return; }
-    if (m.t === 'start' && id === room.host && room.state === 'lobby') { room.state = 'race'; m.from = id; broadcast(room, m); broadcast(room, lobbyMsg(room)); return; }
+    if (m.t === 'start' && id === room.host) { room.state = 'race'; m.from = id; broadcast(room, m); broadcast(room, lobbyMsg(room)); return; }
     if (m.t === 'tolobby' && id === room.host) { room.state = 'lobby'; broadcast(room, { t: 'tolobby' }); broadcast(room, lobbyMsg(room)); return; }
+    if (HOST_ONLY.has(m.t) && id !== room.host) return;
     if (RELAY.has(m.t)) { m.from = id; broadcast(room, m, ws); }
   });
 
