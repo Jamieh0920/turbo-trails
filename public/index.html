@@ -1021,7 +1021,7 @@ function stepKart(k,inp,dt){
       if(k.charge>=1.7){k.boostT=Math.max(k.boostT,1.1);if(k.isPlayer)sfx.boost();}
       else if(k.charge>=0.8){k.boostT=Math.max(k.boostT,0.6);if(k.isPlayer)sfx.boost();}
       k.drifting=false;k.charge=0;turn=steer*k.turnRate;
-    }else{k.charge+=dt*(0.7+0.5*Math.max(0,steer*k.driftDir));turn=k.driftDir*(1.15+0.8*steer*k.driftDir);}
+    }else{k.charge+=dt*(0.8+0.45*Math.max(0,steer*k.driftDir));turn=k.driftDir*Math.max(0.04,0.8+0.88*steer*k.driftDir);}
   }else turn=steer*k.turnRate;
   k.steerVis+=(steer-k.steerVis)*Math.min(1,dt*10);
   const sf=Math.min(1,Math.abs(k.speed)/10)*(k.speed<0?-1:1)*(k.air?0.35:1);
