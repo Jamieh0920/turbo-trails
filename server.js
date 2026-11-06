@@ -11,12 +11,15 @@ const HOST_ONLY = new Set(['set', 'gpscore', 'gpend']);
 
 const app = express();
 app.use('/lib', express.static(path.join(__dirname, 'node_modules/three/build'), { maxAge: '7d' }));
+app.get('/lib/qrcode.js', (req, res) => res.sendFile(path.join(__dirname, 'node_modules/qrcode-generator/qrcode.js')));
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => res.send('ok'));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024 });
 const rooms = new Map(); // code -> { players: Map<id, {ws,name,cfg}>, host, state }
+const tvRooms = new Map(); // code -> { tv: ws, pads: Map<id, {ws,name,cfg}> }  (couch / TV mode)
+const MAX_PADS = 4;
 let nextId = 1;
 
 const send = (ws, o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
@@ -30,7 +33,7 @@ const lobbyMsg = (room) => ({
 });
 function newCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let c; do { c = ''; for (let i = 0; i < 4; i++) c += A[(Math.random() * A.length) | 0]; } while (rooms.has(c));
+  let c; do { c = ''; for (let i = 0; i < 4; i++) c += A[(Math.random() * A.length) | 0]; } while (rooms.has(c) || tvRooms.has(c));
   return c;
 }
 const cleanName = (n) => String(n || 'Player').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 12) || 'Player';
@@ -43,16 +46,41 @@ const cleanCfg = (c) => (c && typeof c === 'object' && JSON.stringify(c).length 
 
 wss.on('connection', (ws) => {
   const id = nextId++;
-  let room = null, code = null, msgCount = 0;
+  let room = null, code = null, msgCount = 0, tvRoom = null, tvCode = null, role = null;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
   const rate = setInterval(() => { msgCount = 0; }, 1000);
 
   ws.on('message', (buf) => {
-    if (++msgCount > 120) return; // simple flood guard
+    if (++msgCount > 200) return; // simple flood guard
     let m; try { m = JSON.parse(buf); } catch (e) { return; }
     if (!m || typeof m.t !== 'string') return;
 
+    // ---- couch / TV mode: one screen, phones as controllers ----
+    if (m.t === 'tvcreate') {
+      if (room || tvRoom) return;
+      const c = newCode(); tvRoom = { tv: ws, pads: new Map() }; tvRooms.set(c, tvRoom); tvCode = c; role = 'tv';
+      return send(ws, { t: 'tvcreated', room: c });
+    }
+    if (m.t === 'padjoin') {
+      if (room || tvRoom) return;
+      const c = String(m.room || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4), r = tvRooms.get(c);
+      if (!r) return send(ws, { t: 'err', msg: 'No TV found with code ' + c + '. Check the code on the TV screen.' });
+      if (r.pads.size >= MAX_PADS) return send(ws, { t: 'err', msg: 'That TV already has 4 players.' });
+      const name = cleanName(m.name), taken = new Set([...r.pads.values()].map(p => p.name));
+      let nm = name; for (let n = 2; taken.has(nm); n++) nm = name.slice(0, 9) + ' ' + n;
+      r.pads.set(id, { ws, name: nm, cfg: cleanCfg(m.cfg) }); tvRoom = r; tvCode = c; role = 'pad';
+      send(ws, { t: 'padjoined', id, room: c, name: nm });
+      return send(r.tv, { t: 'padjoin', id, name: nm, cfg: cleanCfg(m.cfg) });
+    }
+    if (tvRoom) {
+      if (role === 'pad') { if (m.t === 'in' || m.t === 'act') { m.from = id; send(tvRoom.tv, m); } return; }
+      if (role === 'tv') {
+        if (m.to) { const p = tvRoom.pads.get(m.to); if (p) send(p.ws, m); }
+        else for (const p of tvRoom.pads.values()) send(p.ws, m);
+      }
+      return;
+    }
     if (m.t === 'create' || m.t === 'join') {
       if (room) return;
       const c = m.t === 'create' ? newCode() : String(m.room || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
@@ -78,6 +106,11 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     clearInterval(rate);
+    if (tvRoom) {
+      if (role === 'tv') { for (const p of tvRoom.pads.values()) send(p.ws, { t: 'tvgone' }); tvRooms.delete(tvCode); }
+      else { tvRoom.pads.delete(id); send(tvRoom.tv, { t: 'padleave', id }); }
+      return;
+    }
     if (!room) return;
     room.players.delete(id);
     if (room.players.size === 0) { rooms.delete(code); return; }
