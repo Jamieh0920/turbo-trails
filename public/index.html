@@ -44,7 +44,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:Nu
 #touch button.sm{width:var(--btnsm);height:var(--btnsm);font-size:clamp(9px,2.2vmin,11px)}
 #touch{padding:clamp(8px,2.5vmin,16px);padding-left:calc(clamp(8px,2.5vmin,16px) + env(safe-area-inset-left));padding-right:calc(clamp(8px,2.5vmin,16px) + env(safe-area-inset-right));padding-bottom:calc(clamp(8px,2.5vmin,16px) + env(safe-area-inset-bottom))}
 #touch button.on{background:rgba(255,210,63,.55)}
-body.touch #speed{bottom:calc(var(--btn) + clamp(14px,4vmin,30px) + env(safe-area-inset-bottom));right:calc(26px + env(safe-area-inset-right));font-size:clamp(18px,5vmin,26px)}
+#touch button.gas{width:calc(var(--btn)*1.15);height:calc(var(--btn)*1.15);font-size:clamp(14px,4vmin,20px);border-color:#7ee7c6;background:rgba(46,204,113,.3)}#touch button.gas.on{background:rgba(46,204,113,.75)}
+body.touch #speed{bottom:calc(var(--btn)*1.15 + clamp(14px,4vmin,30px) + env(safe-area-inset-bottom));right:calc(26px + env(safe-area-inset-right));font-size:clamp(18px,5vmin,26px)}
 .panel{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(15,18,50,.35),rgba(8,10,30,.75));padding:16px;overflow:auto}
 .card{width:min(460px,100%);background:linear-gradient(160deg,#1d2260,#141838);border:3px solid rgba(255,255,255,.12);border-radius:28px;padding:28px 26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);text-align:center}
 h1{font-family:'Luckiest Guy',cursive;font-size:58px;line-height:.95;margin:0 0 6px;background:linear-gradient(180deg,#ffe066,#ff7b39 60%,#ff3b5c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 #0c0f2a)}
@@ -109,6 +110,7 @@ body.tvmode #mini{top:50%;transform:translateY(-50%);width:clamp(90px,18vmin,170
 .padLeft{left:max(14px,env(safe-area-inset-left))}.padRight{right:max(14px,env(safe-area-inset-right))}
 #padCtl button[data-pk]{border-radius:50%;border:3px solid rgba(255,255,255,.85);background:rgba(255,255,255,.08);color:#fff;font-family:'Luckiest Guy',cursive;touch-action:none}
 #padCtl button[data-pk].on{background:rgba(255,210,63,.55)}
+#padCtl button.pgas{border-color:#7ee7c6;background:rgba(46,204,113,.3)}#padCtl button.pgas.on{background:rgba(46,204,113,.75)}
 #padSteerL,#padSteerR{width:min(30vmin,140px);height:min(30vmin,140px);font-size:44px}
 .pbl{width:min(34vmin,150px);height:min(34vmin,150px);font-size:24px}.pbm{width:min(24vmin,104px);height:min(24vmin,104px);font-size:18px}.pbs{width:min(20vmin,88px);height:min(20vmin,88px);font-size:14px}
 #padResBtns{display:flex;flex-direction:column;gap:8px}
@@ -195,8 +197,8 @@ td.pts{color:#7ee7c6;width:52px}
 </div>
 
 <div id="touch" class="hidden">
-  <div class="pad" id="steerPad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
-  <div class="pad"><button class="sm" data-k="down">BRAKE</button><button class="sm" data-k="item">ITEM</button><button data-k="drift" style="font-size:clamp(12px,3vmin,15px)">DRIFT</button></div>
+  <div class="pad" id="steerPad"><button data-k="left">◀</button><button data-k="right">▶</button></div><div class="pad hidden" id="gasPadL"><button class="gas" data-k="up">GAS</button></div>
+  <div class="pad"><button class="sm" data-k="down">BRAKE</button><button class="sm" data-k="item">ITEM</button><button data-k="drift" style="font-size:clamp(12px,3vmin,15px)">DRIFT</button><button class="gas" data-k="up">GAS</button></div>
 </div>
 
 <div id="menu" class="panel">
@@ -311,8 +313,8 @@ td.pts{color:#7ee7c6;width:52px}
       <button class="ghost" id="padRecentre">🎯 RECENTRE STEERING</button><div class="padNote" style="padding:0;font-size:12px">Hold the phone how you like, then tap Recentre</div>
       <button class="big" id="padTiltDone">DONE</button></div>
     <div id="padCd" class="hidden">GET READY…</div>
-    <div class="padLeft"><button data-pk="left" id="padSteerL">◀</button><button data-pk="right" id="padSteerR">▶</button></div>
-    <div class="padRight"><button data-pk="brake" class="pbs">BRAKE</button><button data-pk="item" class="pbm">ITEM</button><button data-pk="drift" class="pbl">DRIFT</button></div>
+    <div class="padLeft"><button data-pk="left" id="padSteerL">◀</button><button data-pk="right" id="padSteerR">▶</button><button data-pk="gas" id="padGasL" class="pbl pgas hidden">GAS</button></div>
+    <div class="padRight"><button data-pk="brake" class="pbs">BRAKE</button><button data-pk="item" class="pbm">ITEM</button><button data-pk="drift" class="pbm">DRIFT</button><button data-pk="gas" class="pbl pgas">GAS</button></div>
   </div>
   <div id="padRes" class="padScreen hidden">
     <h2>🏁 CHECK THE TV!</h2>
@@ -374,7 +376,7 @@ const AI_NAMES=['Blaze','Pip','Nova','Rusty','Zuma'];
 const ICON={turbo:'🔥',goo:'🟣',bolt:'⚡'};
 let difficulty='normal', playerColor=COLORS[0];
 const touchMode=matchMedia('(pointer:coarse)').matches||('ontouchstart' in window);
-if(touchMode){document.body.classList.add('touch');$('helpKeys').innerHTML='Steer with <b>◀ ▶</b> — your kart accelerates automatically<br>Hold <b>DRIFT</b> while turning, release for a boost<br>Tap <b>ITEM</b> to use what you picked up<br>Hit <b>ramps</b> for big air · <b>orange arrows</b> = speed burst';}
+if(touchMode){document.body.classList.add('touch');$('helpKeys').innerHTML='Hold <b>GAS</b> to go, steer with <b>◀ ▶</b> (DRIFT also keeps you going)<br>Hold <b>DRIFT</b> while turning, release for a boost<br>Tap <b>ITEM</b> to use what you picked up<br>Hit <b>ramps</b> for big air · <b>orange arrows</b> = speed burst';}
 
 // ---------- renderer / scene ----------
 const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true,logarithmicDepthBuffer:true});
@@ -909,7 +911,7 @@ addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&!paused&&!net&&(state==='race'||state==='countdown'))togglePause();});
 document.querySelectorAll('#touch button').forEach(b=>{const k=b.dataset.k;
   const down=e=>{e.preventDefault();b.classList.add('on');if(k==='item'){if(player&&state==='race'&&!paused)useItem(player);}else keys[k]=true;};
-  const up=e=>{b.classList.remove('on');if(k!=='item')keys[k]=false;};
+  const up=e=>{b.classList.remove('on');if(k!=='item')keys[k]=!!document.querySelector('#touch button.on[data-k="'+k+'"]');};
   b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up);});
 
 // ---------- race state ----------
@@ -1002,7 +1004,7 @@ function renderTilt(){if(!$('tiltRow'))return;$('tiltRow').classList.toggle('hid
   document.querySelectorAll('#steerSel button,#padSteer button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='tilt')===tilt.on));
   $('sensSel').classList.toggle('hidden',!tilt.on);document.querySelectorAll('#sensSel button,#padSens button,#padSens2 button').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.v-tilt.max)<0.01));
   if($('padSens')){$('padSens').classList.toggle('hidden',!tilt.on);$('padTiltBtn').classList.toggle('hidden',!tilt.on);$('padLevel').classList.toggle('hidden',!tilt.on);if(!tilt.on)$('padTiltPanel').classList.add('hidden');}
-  $('steerPad').style.visibility=tilt.on?'hidden':'';$('recentreBtn').classList.toggle('hidden',!tilt.on);}
+  $('steerPad').classList.toggle('hidden',tilt.on);$('gasPadL').classList.toggle('hidden',!tilt.on);$('recentreBtn').classList.toggle('hidden',!tilt.on);}
 async function enableTilt(){setTiltMsg('');
   try{if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){const r=await DeviceMotionEvent.requestPermission();if(r!=='granted')throw new Error('denied');}}
   catch(e){tilt.on=false;setTiltMsg('Motion access wasn’t allowed, so steering stays on buttons. You can allow it in your browser settings.');renderTilt();return;}
@@ -1022,7 +1024,7 @@ if(tilt.want&&touchMode&&TILT_OK){if(typeof DeviceMotionEvent!=='undefined'&&typ
     const once=()=>{removeEventListener('pointerup',once,true);if(!tilt.on)enableTilt();};addEventListener('pointerup',once,true);}else enableTilt();}
 renderTilt();
 
-function playerInput(){let throttle=0;if(keys.up||(touchMode&&!keys.down))throttle=1;if(keys.down)throttle=-1;
+function playerInput(){let throttle=0;if(keys.up||(touchMode&&keys.drift))throttle=1;if(keys.down)throttle=-1;
   const b=(keys.left?1:0)-(keys.right?1:0);
   return {throttle,steer:b!==0?b:tiltSteer(),drift:keys.drift};}
 function aiInput(k,dt){
@@ -1238,7 +1240,7 @@ function update(dt){
     if(c!==lastCount&&c>0&&c<=3){lastCount=c;$('msg').classList.remove('title');showMsg(String(c),0.9);sfx.count();}
     const inp=playerInput();if(inp.throttle>0){if(heldSince===null)heldSince=countdown;}else heldSince=null;
     if(countdown<=0){state='race';showMsg('GO!',0.9);sfx.go();
-      if(heldSince!==null&&heldSince<=0.75&&!touchMode){player.boostT=1;showMsg('ROCKET START!',1.1);sfx.boost();}
+      if(heldSince!==null&&heldSince<=0.75){player.boostT=1;showMsg('ROCKET START!',1.1);sfx.boost();}
       for(const k of karts)if(!k.isPlayer&&!k.remote&&Math.random()<DIFF[difficulty].rocket)k.boostT=0.6+Math.random()*0.5;}
     karts.forEach(k=>syncMesh(k,dt));updateCamera(dt);updateHUD();return;}
   // race / finished
@@ -1527,11 +1529,11 @@ function onTv(m){if(!tvs)return;
       const k=karts.find(x=>x.padId===m.id);if(k){k.padId=null;k.isPlayer=false;k.turnRate=2;k.offMul=0.55;players=karts.filter(x=>x.isPlayer);player=players[0]||null;}
       if(!tvs.order.length&&state!=='tvlobby')toTvLobby();else if(k)setupPanes();
       renderTvLobby();tvBroadcast();break;}
-    case 'in':{const p=tvs.pads.get(m.from);if(p)p.in={s:clamp(+m.s||0,-1,1),dr:!!m.dr,br:!!m.br};break;}
+    case 'in':{const p=tvs.pads.get(m.from);if(p)p.in={s:clamp(+m.s||0,-1,1),dr:!!m.dr,br:!!m.br,g:!!m.g};break;}
     case 'act':tvAct(m.from,m.a,m);break;
   }
 }
-function padInput(k){const p=tvs&&tvs.pads.get(k.padId);if(!p)return NOIN;return {throttle:p.in.br?-1:1,steer:p.in.s,drift:p.in.dr};}
+function padInput(k){const p=tvs&&tvs.pads.get(k.padId);if(!p)return NOIN;return {throttle:p.in.br?-1:(p.in.g||p.in.dr?1:0),steer:p.in.s,drift:p.in.dr};}
 function tvAct(from,a,m){const p=tvs.pads.get(from);if(!p)return;const lead=from===tvs.leader;
   if(a==='item'){const k=karts.find(x=>x.padId===from);if(k&&state==='race'&&!paused)useItem(k);return;}
   if(a==='pause'){if(state==='race'||state==='countdown'||state==='finished'){togglePause();tvBroadcast();}return;}
@@ -1598,7 +1600,7 @@ function updatePanes(){const dt=1/60;for(const pn of panes){const k=pn.k;
 addEventListener('resize',()=>setTimeout(sizePanes,50));
 
 // ---- a phone used as a controller ----
-const padKeys={left:false,right:false,drift:false,brake:false};
+const padKeys={left:false,right:false,drift:false,brake:false,gas:false};
 function initPadFromUrl(){const c=(new URLSearchParams(location.search).get('pad')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);if(!c)return false;
   padMode=true;state='pad';document.body.classList.add('padmode');$('menu').classList.add('hidden');$('padCode').textContent=c;pad={room:c,ws:null,id:null,phase:'join',leader:null,players:[],settings:null,buttons:[],last:'',lastT:0,calibUntil:0};
   showPad();return true;}
@@ -1644,13 +1646,13 @@ $('padLeave').onclick=()=>{try{pad.ws.onclose=null;pad.ws.close();}catch(e){}loc
 $('padPause').onclick=()=>padSend({t:'act',a:'pause'});
 document.querySelectorAll('#padCtl [data-pk]').forEach(b=>{const k=b.dataset.pk;
   const down=e=>{e.preventDefault();b.classList.add('on');if(k==='item'){padSend({t:'act',a:'item'});try{navigator.vibrate&&navigator.vibrate(25);}catch(x){}}else padKeys[k]=true;padTick(true);};
-  const up=()=>{b.classList.remove('on');if(k!=='item')padKeys[k]=false;padTick(true);};
+  const up=()=>{b.classList.remove('on');if(k!=='item')padKeys[k]=!!document.querySelector('#padCtl button.on[data-pk="'+k+'"]');padTick(true);};
   b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up);});
 function padTick(force){if(!pad||!pad.ws||pad.phase!=='race')return;const now=performance.now();
   if(tilt.on&&tilt.ok&&now<pad.calibUntil)tilt.center=tilt.raw;
   const btn=(padKeys.left?1:0)-(padKeys.right?1:0),s=btn!==0?btn:(tilt.on?tiltSteer():0);
-  $('padSteerL').style.visibility=$('padSteerR').style.visibility=tilt.on?'hidden':'';
-  const msg={t:'in',s:+s.toFixed(2),dr:padKeys.drift?1:0,br:padKeys.brake?1:0},str=JSON.stringify(msg);
+  $('padSteerL').classList.toggle('hidden',tilt.on);$('padSteerR').classList.toggle('hidden',tilt.on);$('padGasL').classList.toggle('hidden',!tilt.on);
+  const msg={t:'in',s:+s.toFixed(2),dr:padKeys.drift?1:0,br:padKeys.brake?1:0,g:padKeys.gas?1:0},str=JSON.stringify(msg);
   if(force||str!==pad.last||now-pad.lastT>250){pad.last=str;pad.lastT=now;padSend(msg);}}
 setInterval(()=>padTick(false),40);
 
