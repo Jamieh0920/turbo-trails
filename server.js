@@ -86,6 +86,7 @@ wss.on('connection', (ws) => {
       const c = m.t === 'create' ? newCode() : String(m.room || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
       if (m.t === 'create') rooms.set(c, { players: new Map(), host: id, state: 'lobby' });
       const r = rooms.get(c);
+      if (!r && m.t === 'join' && tvRooms.has(c)) return send(ws, { t: 'err', tv: c, msg: 'That is a TV code — opening the controller…' });
       if (!r) return send(ws, { t: 'err', msg: 'Room ' + c + ' not found. Check the code, or ask your friend for a fresh link.' });
       if (r.players.size >= MAX_PLAYERS) return send(ws, { t: 'err', msg: 'That room is full (6 players).' });
       if (r.state !== 'lobby') return send(ws, { t: 'err', msg: 'A race is in progress in that room. Try again when it finishes.' });

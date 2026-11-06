@@ -271,7 +271,7 @@ td.pts{color:#7ee7c6;width:52px}
     <h1>TURBO TRAILS</h1>
     <div class="lab">TV MODE · GRAB YOUR PHONES</div>
     <div class="tvJoin"><div id="tvQR"></div>
-      <div class="tvSteps"><div class="lab">SCAN THE CODE WITH YOUR PHONE CAMERA</div><div class="lab">OR GO TO</div><div id="tvUrl"></div><div class="lab">AND ENTER</div><div id="tvCode">----</div></div></div>
+      <div class="tvSteps"><div class="lab">SCAN THE CODE WITH YOUR PHONE CAMERA</div><div class="lab">OR GO TO</div><div id="tvUrl"></div><div class="lab">TAP ONLINE · TYPE THIS CODE · JOIN ROOM</div><div id="tvCode">----</div></div></div>
     <div class="lab">PLAYERS</div><div id="tvPlayers"></div>
     <div id="tvInfo"></div>
     <button class="ghost" id="tvExit">EXIT TV MODE</button>
@@ -1324,7 +1324,7 @@ function leaveOnline(msg){if(net){try{net.ws.onclose=null;net.ws.close();}catch(
   toMenu();$('onErr').textContent=msg||'';}
 function onNet(m){if(!net)return;
   switch(m.t){
-    case 'err':$('onErr').textContent=m.msg;try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;break;
+    case 'err':if(m.tv){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;location.href=location.pathname+'?pad='+m.tv;break;}$('onErr').textContent=m.msg;try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;break;
     case 'joined':net.id=m.id;net.room=m.room;$('onErr').textContent='';try{history.replaceState(null,'','?room='+m.room);}catch(e){}showLobby();break;
     case 'lobby':net.host=m.host;net.players=m.players||[];
       if(amHost()){if(!net.settings)net.settings={track:curTrack.id,laps:3,ai:true,gp:false,cup:'classic'};nsend({t:'set',settings:net.settings});if(net.inRace)adoptAI();}
