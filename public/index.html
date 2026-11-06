@@ -11,30 +11,32 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:Nunito,system-ui,sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
-#c{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
 .hidden{display:none!important}
 #hud{position:fixed;inset:0;pointer-events:none}
 #tl{position:absolute;left:18px;top:12px;text-shadow:0 3px 0 rgba(0,0,0,.35)}
-#pos{font-family:Bungee,sans-serif;font-size:64px;line-height:1;color:#ffd23f;-webkit-text-stroke:2px #1b1b3a}
-#pos sup{font-size:26px;vertical-align:top;margin-left:2px}
-#lap,#time{font-family:Bungee,sans-serif;font-size:20px;margin-top:4px}
-#time{font-size:16px;opacity:.9}
-#itemBox{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:84px;height:84px;border-radius:20px;background:rgba(20,22,50,.55);border:3px solid rgba(255,255,255,.85);display:grid;place-items:center;backdrop-filter:blur(4px);box-shadow:0 6px 0 rgba(0,0,0,.25)}
-#item{font-size:46px;line-height:1}
+#hud,#touch{--mini:clamp(84px,27vmin,150px);--btn:clamp(56px,17vmin,84px);--btnsm:clamp(46px,13.5vmin,66px)}
+#pos{font-family:Bungee,sans-serif;font-size:clamp(32px,11vmin,64px);line-height:1;color:#ffd23f;-webkit-text-stroke:2px #1b1b3a}
+#pos sup{font-size:clamp(14px,4.4vmin,26px);vertical-align:top;margin-left:2px}
+#lap,#time{font-family:Bungee,sans-serif;font-size:clamp(12px,3.4vmin,20px);margin-top:4px}
+#time{font-size:clamp(10px,2.7vmin,16px);opacity:.9}
+#itemBox{position:absolute;left:50%;top:clamp(8px,2vmin,14px);transform:translateX(-50%);width:clamp(54px,15vmin,84px);height:clamp(54px,15vmin,84px);border-radius:20px;background:rgba(20,22,50,.55);border:3px solid rgba(255,255,255,.85);display:grid;place-items:center;backdrop-filter:blur(4px);box-shadow:0 6px 0 rgba(0,0,0,.25)}
+#item{font-size:clamp(28px,8vmin,46px);line-height:1}
 #itemBox .lbl{position:absolute;bottom:-22px;left:0;right:0;text-align:center;font-family:Bungee,sans-serif;font-size:11px;letter-spacing:1px;opacity:.85;text-shadow:0 2px 0 rgba(0,0,0,.4)}
-#mini{position:absolute;right:14px;top:14px;width:150px;height:150px;border-radius:18px;background:rgba(20,22,50,.45);backdrop-filter:blur(3px)}
-#speed{position:absolute;right:22px;bottom:18px;font-family:Bungee,sans-serif;font-size:44px;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+#mini{position:absolute;right:clamp(8px,2vmin,14px);top:clamp(8px,2vmin,14px);width:var(--mini);height:var(--mini);border-radius:18px;background:rgba(20,22,50,.45);backdrop-filter:blur(3px)}
+#speed{position:absolute;right:22px;bottom:18px;font-family:Bungee,sans-serif;font-size:clamp(24px,7vmin,44px);text-shadow:0 3px 0 rgba(0,0,0,.35)}
 #speed small{font-size:14px;margin-left:4px}
-#msg{position:absolute;left:0;right:0;top:30%;text-align:center;font-family:Bungee,sans-serif;font-size:76px;color:#fff;-webkit-text-stroke:3px #1b1b3a;text-shadow:0 6px 0 rgba(0,0,0,.25);opacity:0;transform:scale(.8);transition:opacity .15s,transform .15s}
+#msg{position:absolute;left:0;right:0;top:30%;text-align:center;font-family:Bungee,sans-serif;font-size:clamp(24px,8.5vmin,76px);color:#fff;-webkit-text-stroke:clamp(1.5px,0.35vmin,3px) #1b1b3a;text-shadow:0 6px 0 rgba(0,0,0,.25);opacity:0;transform:scale(.8);transition:opacity .15s,transform .15s}
 #msg.show{opacity:1;transform:scale(1)}
 #msg.warn{color:#ff4d6d}
-#pauseBtn{pointer-events:auto;position:absolute;right:176px;top:18px;width:44px;height:44px;border-radius:14px;border:2px solid rgba(255,255,255,.8);background:rgba(20,22,50,.55);color:#fff;font-size:16px;cursor:pointer}
+#pauseBtn{pointer-events:auto;position:absolute;right:calc(var(--mini) + clamp(18px,4vmin,26px));top:clamp(10px,2.5vmin,18px);width:clamp(36px,8vmin,44px);height:clamp(36px,8vmin,44px);border-radius:14px;border:2px solid rgba(255,255,255,.8);background:rgba(20,22,50,.55);color:#fff;font-size:16px;cursor:pointer}
 #touch{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;padding:16px;pointer-events:none}
 #touch .pad{display:flex;gap:12px;pointer-events:auto;align-items:flex-end}
-#touch button{width:84px;height:84px;border-radius:50%;border:3px solid rgba(255,255,255,.8);background:rgba(20,22,50,.45);color:#fff;font-family:Bungee,sans-serif;font-size:26px;touch-action:none}
-#touch button.sm{width:66px;height:66px;font-size:11px}
+#touch button{width:var(--btn);height:var(--btn);border-radius:50%;border:3px solid rgba(255,255,255,.8);background:rgba(20,22,50,.45);color:#fff;font-family:Bungee,sans-serif;font-size:26px;touch-action:none}
+#touch button.sm{width:var(--btnsm);height:var(--btnsm);font-size:clamp(9px,2.2vmin,11px)}
+#touch{padding:clamp(8px,2.5vmin,16px)}
 #touch button.on{background:rgba(255,210,63,.55)}
-body.touch #speed{bottom:118px;right:26px;font-size:24px}
+body.touch #speed{bottom:calc(var(--btn) + clamp(14px,4vmin,30px));right:26px;font-size:clamp(18px,5vmin,26px)}
 .panel{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(15,18,50,.35),rgba(8,10,30,.75));padding:16px;overflow:auto}
 .card{width:min(460px,100%);background:linear-gradient(160deg,#1d2260,#141838);border:3px solid rgba(255,255,255,.12);border-radius:28px;padding:28px 26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);text-align:center}
 h1{font-family:Bungee,sans-serif;font-size:58px;line-height:.95;margin:0 0 6px;background:linear-gradient(180deg,#ffe066,#ff7b39 60%,#ff3b5c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 #0c0f2a)}
@@ -128,10 +130,7 @@ td.pts{color:#7ee7c6;width:52px}
 .pod.me .nm{color:#ffd23f}
 #resNote{margin:-6px 0 14px;font-weight:800;color:#7ee7c6;min-height:1em}
 @media (max-width:640px){
-  #pos{font-size:44px}#pos sup{font-size:18px}#lap{font-size:15px}#time{font-size:12px}
-  #mini{width:104px;height:104px}#pauseBtn{right:128px}
-  #itemBox{width:66px;height:66px;top:12px}#item{font-size:34px}
-  #msg{font-size:46px}h1{font-size:46px}
+  h1{font-size:46px}
 }
 </style>
 </head>
@@ -149,7 +148,7 @@ td.pts{color:#7ee7c6;width:52px}
 
 <div id="touch" class="hidden">
   <div class="pad" id="steerPad"><button data-k="left">◀</button><button data-k="right">▶</button></div>
-  <div class="pad"><button class="sm" data-k="down">BRAKE</button><button class="sm" data-k="item">ITEM</button><button data-k="drift" style="font-size:15px">DRIFT</button></div>
+  <div class="pad"><button class="sm" data-k="down">BRAKE</button><button class="sm" data-k="item">ITEM</button><button data-k="drift" style="font-size:clamp(12px,3vmin,15px)">DRIFT</button></div>
 </div>
 
 <div id="menu" class="panel">
@@ -277,8 +276,10 @@ const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x8fd3ff);
 scene.fog=new THREE.Fog(0x8fd3ff,240,950);
 const camera=new THREE.PerspectiveCamera(70,1,0.3,2500);
-function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
-addEventListener('resize',resize);resize();
+let viewW=0,viewH=0;
+function resize(){const c=renderer.domElement,w=c.clientWidth||innerWidth,h=c.clientHeight||innerHeight;if(!w||!h)return;viewW=w;viewH=h;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();try{if(state==='garage')garageView();}catch(e){}}
+addEventListener('resize',resize);addEventListener('orientationchange',()=>setTimeout(resize,250));resize();
 const hemi=new THREE.HemisphereLight(0xffffff,0x4a7a3a,0.95);scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffffff,0.7);sun.position.set(120,220,60);scene.add(sun);
 
@@ -1109,6 +1110,7 @@ function updateHUD(){
 
 let last=performance.now();
 function loop(now){requestAnimationFrame(loop);const dt=Math.min(0.05,(now-last)/1000);last=now;
+  {const c=renderer.domElement;if(c.clientWidth!==viewW||c.clientHeight!==viewH)resize();}
   for(const c of clouds){c.position.x+=dt*2;}
   if(snow){const a=snow.geometry.attributes.position;for(let i=0;i<a.count;i++){let y=a.getY(i)-dt*7;if(y<0)y+=60;a.setY(i,y);a.setX(i,a.getX(i)+Math.sin(y*0.3+i)*dt*0.6);}a.needsUpdate=true;
     snow.position.set(camera.position.x,0,camera.position.z);}
@@ -1131,7 +1133,7 @@ gScene.add(new THREE.HemisphereLight(0xffffff,0x334466,0.85));
 }
 const gCam=new THREE.PerspectiveCamera(36,1,0.1,200);gCam.position.set(7.5,3.6,8.5);gCam.lookAt(0,0.9,0);
 let gKart=null,gCfg=null,gRot=0.6,gDrag=null;
-function garageView(){const w=innerWidth,h=innerHeight;gCam.aspect=w/h;const d=w/h<1?2.0:w/h<1.3?1.4:1;gCam.position.set(7.5*d,3.2+0.6*d,8.5*d);gCam.lookAt(0,0.9,0);
+function garageView(){const w=renderer.domElement.clientWidth||innerWidth,h=renderer.domElement.clientHeight||innerHeight;gCam.aspect=w/h;const d=w/h<1?2.0:w/h<1.3?1.4:1;gCam.position.set(7.5*d,3.2+0.6*d,8.5*d);gCam.lookAt(0,0.9,0);
   if(w>760)gCam.setViewOffset(w,h,200,0,w,h);else gCam.setViewOffset(w,h,0,h*0.27,w,h);gCam.updateProjectionMatrix();}
 addEventListener('resize',garageView);
 function refreshGarageKart(){if(gKart){gScene.remove(gKart.group);disposeGroup(gKart.group);}gKart=makeKart(gCfg,gScene);gKart.flame.visible=true;renderGarageUI();}
