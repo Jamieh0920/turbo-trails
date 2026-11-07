@@ -47,6 +47,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1020;font-family:Nu
 #touch button.gas{width:calc(var(--btn)*1.15);height:calc(var(--btn)*1.15);font-size:clamp(14px,4vmin,20px);border-color:#7ee7c6;background:rgba(46,204,113,.3)}#touch button.gas.on{background:rgba(46,204,113,.75)}
 body.touch #speed{bottom:calc(clamp(12px,3vmin,22px) + env(safe-area-inset-bottom));right:calc(var(--btn)*2.15 + 44px + env(safe-area-inset-right));font-size:clamp(18px,5vmin,26px)}
 .panel{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(15,18,50,.35),rgba(8,10,30,.75));padding:16px;overflow:auto}
+.panel.podiumOn{background:linear-gradient(90deg,transparent 45%,rgba(8,10,30,.55))}.panel.podiumOn #podium{display:none}
+.panel.podiumOn .card{animation:podCard .5s cubic-bezier(.2,1.4,.4,1) 3s both}
+@keyframes podCard{from{opacity:0;transform:translateX(40px) scale(.96)}}
+@media (min-width:761px){.panel.podiumOn{place-items:center end;padding-right:max(24px,4vw)}}
+@media (max-width:760px){.panel.podiumOn{background:linear-gradient(180deg,transparent 40%,rgba(8,10,30,.6));place-items:end center}.panel.podiumOn .card{max-height:58vh;overflow:auto}}
 .card{width:min(460px,100%);background:linear-gradient(160deg,#1d2260,#141838);border:3px solid rgba(255,255,255,.12);border-radius:28px;padding:28px 26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.1);text-align:center}
 h1{font-family:'Luckiest Guy',cursive;font-size:58px;line-height:.95;margin:0 0 6px;background:linear-gradient(180deg,#ffe066,#ff7b39 60%,#ff3b5c);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 #0c0f2a)}
 h2{font-family:'Luckiest Guy',cursive;margin:0 0 14px;font-size:34px}
@@ -1133,7 +1138,7 @@ const standings=()=>gp.roster.slice().sort((a,b)=>b.pts-a.pts||a.lastRank-b.last
 function newKart(e,idx,lane){
   const color=e.color,name=e.name,isPlayer=e.isPlayer;
   const m=makeKart(e.cfg,scene);const pos=at(idx,lane,0);
-  const k=Object.assign(m,{color,name,isPlayer,pos,h:Math.atan2(T[idx].x,T[idx].z),speed:0,idx,lap:0,maxLap:0,item:null,item2:null,rollT:0,itemHold:0,
+  const k=Object.assign(m,{cfg:e.cfg,color,name,isPlayer,pos,h:Math.atan2(T[idx].x,T[idx].z),speed:0,idx,lap:0,maxLap:0,item:null,item2:null,rollT:0,itemHold:0,
     spinT:0,spinA:0,y:0,vy:0,air:false,airT:0,g:0,pitch:0,boostT:0,drifting:false,driftDir:0,charge:0,hop:0,visYaw:0,steerVis:0,finished:false,finishTime:0,lane,laneTarget:lane,laneT:2+Math.random()*3,
     baseMax:isPlayer?55:DIFF[difficulty].ai*(0.965+Math.random()*0.055),maxSpeed:55,accel:isPlayer?27:DIFF[difficulty].acc,cornerT:0,aiSpark:false,lapStart:0,bestLap:null,wrongT:0,rank:6});
   if(isPlayer){const st=kartStats(e.cfg);k.baseMax=st.max;k.accel=st.acc;k.turnRate=st.turn;k.offMul=st.off;}else{k.turnRate=2;k.offMul=0.55;}
@@ -1332,7 +1337,7 @@ function playerFinished(){state='finished';finishWait=0;sfx.lap();showMsg('FINIS
 function showResults(){
   if(mode==='online'&&net){state='results';$('hud').classList.add('hidden');$('touch').classList.add('hidden');$('pause').classList.add('hidden');
     $('standWrap').classList.add('hidden');$('nextBtn').classList.add('hidden');$('menuBtn').textContent='LEAVE ROOM';
-    $('againBtn').textContent='BACK TO LOBBY';$('trophy').classList.add('hidden');renderResults();$('results').classList.remove('hidden');return;}
+    $('againBtn').textContent='BACK TO LOBBY';$('trophy').classList.add('hidden');renderResults();podiumFor('results',computeRanks().slice(0,3));$('results').classList.remove('hidden');return;}
   state='results';const arr=computeRanks();$('hud').classList.add('hidden');$('touch').classList.add('hidden');clearPanes();
   const r=player.rank;$('resTitle').textContent=r+ORD[r]+(r===1?' PLACE! 🏆':r<=3?' PLACE!':' place');
   let note=curTrack.name+' · '+fmt(player.finishTime)+(player.bestLap?' · best lap '+fmt(player.bestLap):'');
@@ -1349,8 +1354,10 @@ function showResults(){
     $('againBtn').textContent=done?'SEE THE PODIUM 🏆':'NEXT RACE ▶ '+cupTrack(gp.cup,gp.race).name.toUpperCase();
     $('nextBtn').classList.add('hidden');$('menuBtn').textContent='QUIT GRAND PRIX';}
   else{$('againBtn').textContent='RACE AGAIN';$('nextBtn').classList.remove('hidden');$('menuBtn').textContent='MAIN MENU';}
-  $('results').classList.remove('hidden');
+  podiumFor('results',arr.slice(0,3));$('results').classList.remove('hidden');
 }
+function podiumFor(panel,list){try{startPodium(list.map(x=>({cfg:x.cfg,name:x.name,color:x.color})));['results','trophy'].forEach(id=>$(id).classList.toggle('podiumOn',id===panel));
+  const c=$(panel).querySelector('.card');c.style.animation='none';void c.offsetWidth;c.style.animation='';}catch(e){console.warn(e);}}
 
 function renderResults(){if(!player)return;const g=net&&net.gp;let arr=computeRanks();
   if(g&&g.scored){arr=arr.slice().sort((a,b)=>(g.ranks[a.netId]||9)-(g.ranks[b.netId]||9));arr.forEach((k,i)=>k.rank=g.ranks[k.netId]||i+1);}
@@ -1384,7 +1391,7 @@ function showTrophy(){
   $('podium').innerHTML=pod(st[1],2)+pod(st[0],1)+pod(st[2],3);
   $('finalTable').innerHTML=st.map((e,i)=>`<tr class="${e.isPlayer?'me':''}"><td>${i+1}${ORD[i+1]}</td><td><span class="dot" style="background:${e.color}"></span>${esc(e.name)}</td><td>${e.pts} pts</td></tr>`).join('');
   $('gpAgainBtn').textContent='NEW GRAND PRIX';$('gpAgainBtn').classList.remove('hidden');$('gpMenuBtn').textContent='MAIN MENU';
-  $('trophy').classList.remove('hidden');
+  podiumFor('trophy',st.slice(0,3));$('trophy').classList.remove('hidden');
   if(place<=3){sfx.lap();setTimeout(()=>sfx.boost(),300);}
 }
 function startGP(){gp={race:0,cup:cupId,roster:makeRoster()};selectTrack(cupTrack(cupId,0));startRace();}
@@ -1495,7 +1502,9 @@ function loop(now){requestAnimationFrame(loop);const dt=Math.min(0.05,(now-last)
   if(padMode&&state!=='garage')return;
   if(!paused)update(dt);else engineOff();
   if(padMode)return;
-  if(tvs&&panes.length&&(state==='countdown'||state==='race'||state==='finished'))renderPanes();else renderer.render(scene,camera);}
+  if(podium&&state!=='results'){clearPodium();['results','trophy'].forEach(id=>$(id).classList.remove('podiumOn'));}
+  if(podium){updatePodium(dt);renderer.render(pScene,pCam);}
+  else if(tvs&&panes.length&&(state==='countdown'||state==='race'||state==='finished'))renderPanes();else renderer.render(scene,camera);}
 requestAnimationFrame(loop);
 
 // ---------- garage ----------
@@ -1561,6 +1570,60 @@ $('gDone').onclick=()=>closeGarage(true);
 $('gBack').onclick=()=>closeGarage(false);
 $('garageBtn').onclick=()=>{initAudio();openGarage();};
 updateKartSummary();
+
+// ---------- podium celebration ----------
+const pScene=new THREE.Scene();pScene.background=new THREE.Color(0x1a1f4a);pScene.fog=new THREE.Fog(0x1a1f4a,30,70);
+pScene.add(new THREE.HemisphereLight(0xdfe8ff,0x2a2050,0.75));{const l=new THREE.DirectionalLight(0xffffff,0.85);l.position.set(6,14,10);pScene.add(l);
+  const l2=new THREE.DirectionalLight(0xff9ad5,0.35);l2.position.set(-8,6,-4);pScene.add(l2);}
+const pCam=new THREE.PerspectiveCamera(40,1,0.1,200);
+{const fl=new THREE.Mesh(new THREE.CircleGeometry(30,48),new THREE.MeshLambertMaterial({color:0x2a3170}));fl.rotation.x=-Math.PI/2;pScene.add(fl);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(7,7.5,64),new THREE.MeshBasicMaterial({color:0xffd23f}));ring.rotation.x=-Math.PI/2;ring.position.y=0.02;pScene.add(ring);
+  for(let i=0;i<14;i++){const a=i/14*Math.PI*2,b=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,7,12),new THREE.MeshBasicMaterial({color:i%2?0xff2bd6:0x2de2ff}));
+    b.position.set(Math.sin(a)*22,3.5,-Math.abs(Math.cos(a))*16-6);pScene.add(b);}}
+const PODC=['#ffc93c','#cfd8e3','#d98a4a'],PODH=[2.3,1.55,1.0],PODX=[0,-2.7,2.7];
+function numTex(n,col){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');g.fillStyle=col;g.fillRect(0,0,128,128);
+  g.fillStyle='rgba(0,0,0,.25)';g.font='900 92px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(n,66,74);g.fillStyle='#fff';g.fillText(n,64,70);return new THREE.CanvasTexture(c);}
+function nameSprite(txt,col){const c=document.createElement('canvas');c.width=512;c.height=128;const g=c.getContext('2d');g.font='900 64px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';
+  g.lineWidth=12;g.strokeStyle='#14183a';g.strokeText(txt,256,66);g.fillStyle=col;g.fillText(txt,256,66);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(3.2,0.8,1);return s;}
+{const blocks=[0,1,2].map(i=>{const tex=numTex(i+1,PODC[i]),side=new THREE.MeshPhongMaterial({color:PODC[i],shininess:60,specular:0x666666});
+  const m=new THREE.Mesh(new THREE.BoxGeometry(2.6,PODH[i],2.4),[side,side,side,side,new THREE.MeshPhongMaterial({map:tex,shininess:60}),side]);m.position.set(PODX[i],PODH[i]/2,0);pScene.add(m);return m;});}
+let podium=null;
+function clearPodium(){if(!podium)return;for(const o of podium.objs){pScene.remove(o);disposeGroup(o);}podium=null;}
+// entries: [{cfg,name,color}] best first (up to 3)
+function startPodium(entries){clearPodium();podium={t:0,objs:[],racers:[],landed:0};
+  entries.slice(0,3).forEach((e,i)=>{const cfg=Object.assign({},DEFAULT_KART,e.cfg||{});const d=makeDriver(cfg,cfg.helmet),g=new THREE.Group();g.add(d.root);
+    // legs and boots for standing up
+    const lm=dmat(cfg.suit),bm=dmat('#22252e');for(const s of [-1,1]){const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.12,0.55,12),lm);leg.position.set(s*0.2,-1.55,0);d.root.add(leg);
+      const boot=new THREE.Mesh(new THREE.SphereGeometry(0.17,14,10),bm);boot.scale.set(1,0.6,1.5);boot.position.set(s*0.2,-1.85,0.06);d.root.add(boot);}
+    d.root.position.y=1.95;const top=PODH[i];g.position.set(PODX[i],top+9+i*0,0);g.rotation.y=-PODX[i]*0.06;pScene.add(g);
+    const lab=nameSprite((i+1)+ORD[i+1]+' '+e.name,hexOf(e.color||cfg.body));lab.position.set(PODX[i],top+3.55,0.2);lab.visible=false;pScene.add(lab);
+    podium.objs.push(g,lab);podium.racers.push({g,d,lab,top,i,delay:[1.6,0.9,0.25][i],vy:0,landed:false,ph:Math.random()*6});});
+  // confetti
+  const N=260,cg=new THREE.PlaneGeometry(0.16,0.26),cm=new THREE.MeshBasicMaterial({side:THREE.DoubleSide}),cf=new THREE.InstancedMesh(cg,cm,N);
+  const col=new THREE.Color(),cd=[];for(let i=0;i<N;i++){col.set(COLORS[i%COLORS.length]);cf.setColorAt(i,col);cd.push({x:(Math.random()-0.5)*14,y:8+Math.random()*14,z:(Math.random()-0.5)*8,r:Math.random()*6,s:1+Math.random()*2,w:Math.random()*6});}
+  cf.instanceColor.needsUpdate=true;cf.frustumCulled=false;cf.visible=false;pScene.add(cf);podium.objs.push(cf);podium.cf=cf;podium.cd=cd;podium.dummy=new THREE.Object3D();}
+function updatePodium(dt){const P=podium;P.t+=dt;const t=P.t;
+  for(const r of P.racers){const g=r.g,d=r.d;
+    if(!r.landed){if(t<r.delay){g.visible=false;continue;}g.visible=true;r.vy-=30*dt;g.position.y+=r.vy*dt;
+      if(g.position.y<=r.top){g.position.y=r.top;r.landed=true;r.lt=t;r.lab.visible=true;sfx.item&&sfx.item();if(r.i===0){try{finalLapJingle();mus.fast=1;}catch(e){}}}}
+    else{const k=t-r.lt;let y=r.top;if(k<0.35)y=r.top-Math.sin(k/0.35*Math.PI)*0.12;
+      if(r.i===0&&k>0.4)y=r.top+Math.abs(Math.sin((k-0.4)*4.2))*0.55;g.position.y=y;
+      g.scale.set(1+(k<0.3?Math.sin(k/0.3*Math.PI)*0.12:0),1-(k<0.3?Math.sin(k/0.3*Math.PI)*0.12:0),1);
+      // arms: winner waves both arms, others clap
+      for(const a of d.arms){let tg;if(r.i===0)tg=new THREE.Vector3(a.s*0.7,0.55+Math.sin(t*9+a.s)*0.15,0.25);
+        else{const c=Math.sin(t*10+r.ph)*0.5+0.5;tg=new THREE.Vector3(a.s*(0.12+c*0.25),-0.75,0.75);}aimArm(a,tg);}
+      d.headG.rotation.y=Math.sin(t*1.3+r.ph)*0.25;d.headG.rotation.z=r.i===0?Math.sin(t*4.2)*0.08:0;}}
+  if(P.cf&&t>1.6){P.cf.visible=true;const D=P.dummy;P.cd.forEach((c,i)=>{c.y-=c.s*dt;if(c.y<0){c.y=10+Math.random()*4;}c.r+=dt*c.w;
+    D.position.set(c.x+Math.sin(t+c.r)*0.4,c.y,c.z);D.rotation.set(c.r,c.r*0.7,0);D.updateMatrix();P.cf.setMatrixAt(i,D.matrix);});P.cf.instanceMatrix.needsUpdate=true;}
+  else if(P.cf){P.cf.visible=t>1.6;}
+  // camera: swoop in, then a gentle sway
+  const w=renderer.domElement.clientWidth||innerWidth,h=renderer.domElement.clientHeight||innerHeight;pCam.aspect=w/h;
+  const card=w>760?document.querySelector('.panel.podiumOn .card'):null,cw=card?card.offsetWidth+30:0,free=Math.max(0.35,(w-cw)/w);
+  const e=Math.min(1,t/2.4),ease=1-Math.pow(1-e,3),dist=((w/h<1.2?18.5:w/h<1.9?14.5:13.5)-ease*1.5)*Math.max(1,0.72/free),ang=Math.sin(t*0.25)*0.22+(1-ease)*0.6;
+  pCam.position.set(Math.sin(ang)*dist,4.4+(1-ease)*4,Math.cos(ang)*dist);pCam.lookAt(0,3.0,0);
+  P.off=cw/2;
+  if(w>760)pCam.setViewOffset(w,h,P.off,0,w,h);else pCam.setViewOffset(w,h,0,-h*0.12,w,h);pCam.updateProjectionMatrix();}
 
 // ---------- online multiplayer ----------
 let net=null,netAcc=0;
@@ -1676,6 +1739,7 @@ function showNetTrophy(){
   $('podium').innerHTML=pod(st[1],2)+pod(st[0],1)+pod(st[2],3);
   $('finalTable').innerHTML=st.map((e,i)=>`<tr class="${e.id===net.id?'me':''}"><td>${i+1}${ORD[i+1]}</td><td><span class="dot" style="background:${e.color}"></span>${esc(e.name)}${e.ai?' <small style="opacity:.55">CPU</small>':''}</td><td>${e.pts} pts</td></tr>`).join('');
   $('gpAgainBtn').textContent='BACK TO LOBBY';$('gpAgainBtn').classList.toggle('hidden',!amHost());$('gpMenuBtn').textContent='LEAVE ROOM';
+  podiumFor('trophy',st.slice(0,3).map(e=>{const k=karts.find(x=>x.netId===e.id);return {name:e.name,color:e.color,cfg:k&&k.cfg};}));
   $('trophy').classList.remove('hidden');if(place&&place<=3){sfx.lap();setTimeout(()=>sfx.boost(),300);}}
 function netStart(m){if(!net||!Array.isArray(m.grid))return;net.inRace=true;netAcc=0;
   if(m.gp&&Array.isArray(m.gp.table)){const g=m.grid.slice(0,6);
