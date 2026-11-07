@@ -1456,7 +1456,7 @@ function update(dt){
   // item boxes
   for(const bx of boxes){bx.ph+=dt;bx.mesh.rotation.y+=dt*1.5;bx.mesh.rotation.x+=dt*0.7;bx.mesh.position.y=bx.base+Math.sin(bx.ph*2)*0.25;
     if(!bx.mesh.visible){bx.respawn-=dt;if(bx.respawn<=0)bx.mesh.visible=true;continue;}
-    for(const k of karts){if(!k.remote&&Math.abs(k.y-bx.base+1.6)<4.5&&k.pos.distanceToSquared(bx.pos)<8.5){bx.mesh.visible=false;bx.respawn=3;if(net)nsend({t:'box',i:boxes.indexOf(bx)});if(!k.finished){if(!k.item&&k.rollT<=0)k.rollT=1;else if(!k.item2){k.item2=pickItem(k.rank);if(k.isPlayer){sfx.item();buzz(k,40);}}}break;}}}
+    for(const k of karts){if(!k.remote&&!k.finished&&!k.item&&k.rollT<=0&&Math.abs(k.y-bx.base+1.6)<4.5&&k.pos.distanceToSquared(bx.pos)<8.5){bx.mesh.visible=false;bx.respawn=3;if(net)nsend({t:'box',i:boxes.indexOf(bx)});k.rollT=1;break;}}}
   // goo
   for(let h=hazards.length-1;h>=0;h--){const z=hazards[h];z.grace-=dt;z.life-=dt;let gone=z.life<=0;
     if(!gone)for(const k of karts){if(!k.remote&&(k!==z.owner||z.grace<=0)&&k.spinT<=0&&Math.abs(k.y-z.gy)<0.8&&k.pos.distanceToSquared(z.pos)<5.5){spin(k);gone=true;if(net)nsend({t:'goohit',id:z.id});break;}}
