@@ -1929,12 +1929,12 @@ function profileEdge(e){const c=e.c,n=c.length,h=new Float32Array(n),s=new Float
   for(let it=0;it<3;it++){const t=sm.slice();for(let i=1;i<n-1;i++)if(!fix[i])sm[i]=(t[i-1]+2*t[i]+t[i+1])/4;}
   for(let i=0;i<n;i++)c[i].y=sm[i];}
 // --- terrain heightmap ---
-const TS=6,TN=Math.ceil(2*WB/TS)+1,TH=new Float32Array(TN*TN),TW=new Float32Array(TN*TN),TT=new Float32Array(TN*TN),TD=new Float32Array(TN*TN);
+const TS=6,TN=Math.ceil(2*WB/TS)+1,TH=new Float32Array(TN*TN),TW=new Float32Array(TN*TN),TT=new Float32Array(TN*TN),TD=new Float32Array(TN*TN).fill(1e9);
 const tIx=v=>(v+WB)/TS;
 function terrainH(x,z){const fx=clamp(tIx(x),0,TN-1.001),fz=clamp(tIx(z),0,TN-1.001),i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j;
   const a=TH[i*TN+j],b=TH[(i+1)*TN+j],c=TH[i*TN+j+1],d=TH[(i+1)*TN+j+1];return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;}
 function splatFlat(x,z,y,r0,r1){const i0=Math.max(0,Math.floor(tIx(x-r1))),i1=Math.min(TN-1,Math.ceil(tIx(x+r1))),j0=Math.max(0,Math.floor(tIx(z-r1))),j1=Math.min(TN-1,Math.ceil(tIx(z+r1)));
-  for(let i=i0;i<=i1;i++)for(let j=j0;j<=j1;j++){const px=i*TS-WB,pz=j*TS-WB,d=Math.hypot(px-x,pz-z);if(d>r1)continue;const w=d<r0?1:1-sstep(r0,r1,d),k=i*TN+j,w4=w*w*w*w+1e-6;TD[k]+=w4;TT[k]+=w4*y;if(w>TW[k])TW[k]=w;}}
+  for(let i=i0;i<=i1;i++)for(let j=j0;j<=j1;j++){const px=i*TS-WB,pz=j*TS-WB,d=Math.hypot(px-x,pz-z);if(d>r1)continue;const w=d<r0?1:1-sstep(r0,r1,d),k=i*TN+j;if(d<TD[k]){TD[k]=d;TT[k]=y;TW[k]=w;}}}
 // --- rivers ---
 const RIVERS=[[[1450,-1180],[1150,-900],[880,-720],[760,-380],[700,-60],[760,260],[930,560],[1130,820],[1450,1050]],
   [[-1450,-700],[-1150,-520],[-880,-420],[-720,-120],[-760,240],[-900,520],[-1080,760],[-1250,1050],[-1450,1180]]];
@@ -1960,7 +1960,10 @@ function buildHeights(){for(let i=0;i<TN;i++)for(let j=0;j<TN;j++)TH[i*TN+j]=bas
   // flatten corridors along the country roads (cuttings + embankments)
   for(const e of RE)if(e.country)for(const p of e.c)splatFlat(p.x,p.z,p.y-0.25,RH+4,RH+26);
   for(const n of RN)if(n.country||n.cul===false&&Math.hypot(n.x,n.z)>440)splatFlat(n.x,n.z,(n.y||0)-0.25,RH+8,RH+28);
-  for(let k=0;k<TN*TN;k++)if(TW[k]>0)TH[k]=TH[k]+(TT[k]/TD[k]-TH[k])*TW[k];
+  for(let k=0;k<TN*TN;k++)if(TW[k]>0)TH[k]=TH[k]+(TT[k]-TH[k])*TW[k];
+  // never let ground poke through a road: under and beside every road, the ground stays below the surface
+  for(const e of RE)if(e.country)for(const p of e.c){const r=RH+6,i0=Math.max(0,Math.floor(tIx(p.x-r))),i1=Math.min(TN-1,Math.ceil(tIx(p.x+r))),j0=Math.max(0,Math.floor(tIx(p.z-r))),j1=Math.min(TN-1,Math.ceil(tIx(p.z+r)));
+    for(let a=i0;a<=i1;a++)for(let b=j0;b<=j1;b++){const d=Math.hypot(a*TS-WB-p.x,b*TS-WB-p.z);if(d<r){const k=a*TN+b,cap=p.y-0.35+(d>RH+1?(d-RH-1)*0.5:0);if(TH[k]>cap)TH[k]=cap;}}}
   // rivers: carve valleys, monotone downhill water
   rivers=RIVERS.map(pts=>{const crv=new THREE.CatmullRomCurve3(pts.map(([x,z])=>new THREE.Vector3(x,0,z)),false,'centripetal'),c=crv.getSpacedPoints(Math.round(crv.getLength()/5));
     let lo=1e9;const wy=c.map(p=>{let a=0,w=0;for(let dx=-30;dx<=30;dx+=15)for(let dz=-30;dz<=30;dz+=15){a+=terrainH(p.x+dx,p.z+dz);w++;}return a/w;});
