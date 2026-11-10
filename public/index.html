@@ -2087,7 +2087,7 @@ function buildBlock(t,cx,cz,w,R){const h=w/2;
     const sign=roamSign('JUMP PARK','#3a86ff');sign.position.set(cx,0,cz-h-1);rScene.add(sign);return;}
   if(t==='stadium'){stadiumBlock(cx,cz,w,R);return;}}
 // ---- Turbo Stadium: a proper football ground ----
-function stadiumBlock(cx,cz,w,R){const IN=30,OUT=43.5,PL=25,PW=17,TUN=6;
+function stadiumBlock(cx,cz,w,R){const IN=30,OUT=43.5,PL=21,PW=16,TUN=7.5;
   // pitch with markings
   const pt=cnv(512,512,(g,W,H)=>{const u=W/60,X=x=>(x+30)*u;for(let i=0;i<12;i++){g.fillStyle=i%2?'#5cb546':'#4fa83c';g.fillRect(i*W/12,0,W/12,H);}
     g.strokeStyle='#ffffff';g.lineWidth=3;g.strokeRect(X(-PL),X(-PW),2*PL*u,2*PW*u);g.beginPath();g.moveTo(X(0),X(-PW));g.lineTo(X(0),X(PW));g.stroke();
