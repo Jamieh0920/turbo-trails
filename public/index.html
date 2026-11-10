@@ -2085,14 +2085,91 @@ function buildBlock(t,cx,cz,w,R){const h=w/2;
     const conc=rAdd(new THREE.PlaneGeometry(w+6,w+6),new THREE.MeshLambertMaterial({map:(()=>{const t2=TX.tarmac.clone();t2.needsUpdate=true;t2.repeat.set(8,8);return t2;})(),color:0xd7d9e0}),cx,0.04,cz,null,false);conc.rotation.x=-Math.PI/2;
     roamRamp(cx-20,cz+18,0,2.6,14);roamRamp(cx+20,cz-18,Math.PI,2.6,14);roamRamp(cx+18,cz+20,Math.PI/2,3.4,16);roamRamp(cx-22,cz-16,-Math.PI/2,1.8,10);roamRamp(cx,cz,Math.PI/4,3,14);
     const sign=roamSign('JUMP PARK','#3a86ff');sign.position.set(cx,0,cz-h-1);rScene.add(sign);return;}
-  if(t==='stadium'){
-    const pitch=rAdd(new THREE.PlaneGeometry(w-14,w-26),mats.lawn,cx,0.05,cz,null,false);pitch.rotation.x=-Math.PI/2;
-    const tiers=['#ff3b5c','#3a86ff','#ffd23f'];for(const s of [-1,1]){for(let t3=0;t3<3;t3++){const hh=2+t3*2,off=h-1.5-t3*1.8;
-        iadd(P_.box,cx,hh/2,cz+s*off,0,w-4,hh,2,tiers[t3]);iadd(P_.box,cx+s*off,hh/2,cz,0,2,hh,w-20,tiers[t3]);}
-      rBox(cx-h+2,cz+s*(h-4)-3,cx+h-2,cz+s*(h-4)+3);rBox(cx+s*(h-4)-3,cz-h+10,cx+s*(h-4)+3,cz+h-10);}
-    for(const s of [-1,1])for(const u of [-1,1]){iadd(P_.lampPost,cx+s*(h-1),11,cz+u*(h-1),0,3,22,3);iadd(P_.lantern,cx+s*(h-1),22,cz+u*(h-1),0,4,2,1.2);rCirc(cx+s*(h-1),cz+u*(h-1),0.8);}
-    for(const s of [-1,1]){iadd(P_.post,cx+s*(w/2-14),1.5,cz,0,0.3,3,7.4);}
-    const sign=roamSign('TURBO STADIUM','#ffd23f');sign.position.set(cx,0,cz-h-1);rScene.add(sign);return;}}
+  if(t==='stadium'){stadiumBlock(cx,cz,w,R);return;}}
+// ---- Turbo Stadium: a proper football ground ----
+function stadiumBlock(cx,cz,w,R){const IN=30,OUT=43.5,PL=25,PW=17,TUN=6;
+  // pitch with markings
+  const pt=cnv(512,512,(g,W,H)=>{const u=W/60,X=x=>(x+30)*u;for(let i=0;i<12;i++){g.fillStyle=i%2?'#5cb546':'#4fa83c';g.fillRect(i*W/12,0,W/12,H);}
+    g.strokeStyle='#ffffff';g.lineWidth=3;g.strokeRect(X(-PL),X(-PW),2*PL*u,2*PW*u);g.beginPath();g.moveTo(X(0),X(-PW));g.lineTo(X(0),X(PW));g.stroke();
+    g.beginPath();g.arc(X(0),X(0),5*u,0,7);g.stroke();g.fillStyle='#fff';g.beginPath();g.arc(X(0),X(0),3,0,7);g.fill();
+    for(const s of [-1,1]){g.strokeRect(s<0?X(-PL):X(PL-9),X(-11),9*u,22*u);g.strokeRect(s<0?X(-PL):X(PL-3),X(-5.5),3*u,11*u);g.beginPath();g.arc(X(s*(PL-6.5)),X(0),3,0,7);g.fill();
+      g.beginPath();g.arc(X(s*(PL-6.5)),X(0),5*u,s<0?-0.93:Math.PI-0.93,s<0?0.93:Math.PI+0.93);g.stroke();for(const u2 of [-1,1]){g.beginPath();g.arc(X(s*PL),X(u2*PW),1*u,0,7);g.stroke();}}});
+  pt.wrapS=pt.wrapT=THREE.ClampToEdgeWrapping;const pitch=rAdd(new THREE.PlaneGeometry(60,60),new THREE.MeshLambertMaterial({map:pt}),cx,0.06,cz,null,false);pitch.rotation.x=-Math.PI/2;
+  // outside forecourt
+  const fc=rAdd(new THREE.PlaneGeometry(w+6,w+6),mats.pave,cx,0.045,cz,null,false);fc.material=mats.pave.clone();fc.material.map=TX.pave.clone();fc.material.map.needsUpdate=true;fc.material.map.repeat.set(30,30);fc.rotation.x=-Math.PI/2;
+  // facade texture: concrete base with turnstiles, team-colour cladding, glazing band
+  const fac=cnv(256,256,(g,W,H)=>{g.fillStyle='#d9d6cf';g.fillRect(0,0,W,H);speckle(g,W,H,['#cfccc4','#e2dfd8'],800,2);
+    for(let i=0;i<8;i++){g.fillStyle=i%2?'#1f4fa8':'#2a64c9';g.fillRect(i*32,40,32,110);}g.fillStyle='#e8ecf2';g.fillRect(0,150,W,6);
+    g.fillStyle='#2b3a55';g.fillRect(0,14,W,20);for(let x=0;x<W;x+=16){g.fillStyle='rgba(180,210,255,.45)';g.fillRect(x+2,16,12,16);}
+    g.fillStyle='#3a3f4a';for(let x=24;x<W;x+=128){g.fillRect(x,186,40,70);g.fillStyle='#ffd23f';g.fillRect(x,180,40,8);g.fillStyle='#3a3f4a';}});
+  const facM=(len)=>{const t=fac.clone();t.needsUpdate=true;t.repeat.set(Math.max(1,Math.round(len/14)),1);return new THREE.MeshLambertMaterial({map:t});};
+  const seatCols=['#1f4fa8','#2a64c9','#ffffff','#2a64c9','#1f4fa8','#ff3b5c'],crowdCols=['#ff3b5c','#3a86ff','#ffffff','#ffd23f','#22252e','#06d6a0','#f2c29b','#a8693f'];
+  // one stand along an axis; segs = [[from,to],...] along the stand
+  const stand=(axis,s,segs)=>{for(const [a0,a1] of segs){const len=a1-a0,mid=(a0+a1)/2;
+      const P=(off,y,sx,sy,sz,col,im)=>{const x=axis==='x'?cx+mid:cx+s*off,z=axis==='x'?cz+s*off:cz+mid;iadd(im||P_.box,x,y,z,0,axis==='x'?sx:sz,sy,axis==='x'?sz:sx,col);};
+      P(IN+0.3,0.6,len,1.2,0.6,'#ffffff');
+      for(let k=0;k<7;k++){const off=IN+1.2+k*1.75,top=1.0+(k+1)*1.05;P(off,top/2,len,top,1.8,seatCols[k%seatCols.length]);
+        for(let c=a0+1;c<a1-0.5;c+=1.15)if(R()<0.55){const x=axis==='x'?cx+c:cx+s*off,z=axis==='x'?cz+s*off:cz+c;iadd(P_.flower,x,top+0.45,z,0,0.38,0.5,0.38,crowdCols[(R()*crowdCols.length)|0]);}}
+      // tall outer wall (the bit you see from the street)
+      const wx=axis==='x'?cx+mid:cx+s*OUT,wz=axis==='x'?cz+s*OUT:cz+mid,wall=rAdd(new RAW.Box(axis==='x'?len:1.2,14,axis==='x'?1.2:len),facM(len),wx,7,wz);
+      // roof: cantilevered over the seats
+      const rx=axis==='x'?cx+mid:cx+s*(IN+7),rz=axis==='x'?cz+s*(IN+7):cz+mid,roof=rAdd(new RAW.Box(axis==='x'?len+0.6:14,0.5,axis==='x'?14:len+0.6),new THREE.MeshLambertMaterial({color:0xe9edf2}),rx,14.2,rz);
+      roof.rotation[axis==='x'?'x':'z']=(axis==='x'?-s:s)*0.07;
+      const ex=axis==='x'?cx+mid:cx+s*(IN-0.1),ez=axis==='x'?cz+s*(IN-0.1):cz+mid;rAdd(new RAW.Box(axis==='x'?len+0.6:0.5,0.9,axis==='x'?0.5:len+0.6),new THREE.MeshLambertMaterial({color:0x1f4fa8}),ex,13.4,ez);
+      if(axis==='x')rBox(cx+a0,cz+s*IN,cx+a1,cz+s*(OUT+0.7));else rBox(cx+s*IN,cz+a0,cx+s*(OUT+0.7),cz+a1);}};
+  stand('x',-1,[[-IN,IN]]);stand('x',1,[[-IN,IN]]);stand('z',-1,[[-IN,-TUN],[TUN,IN]]);stand('z',1,[[-IN,-TUN],[TUN,IN]]);
+  // big name letters on both long facades + welcome arches over the tunnels
+  const nameTex=cnv(1024,128,(g,W,H)=>{g.clearRect(0,0,W,H);g.font='900 104px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineWidth=10;g.strokeStyle='#14306e';g.strokeText('TURBO STADIUM',W/2,70);g.fillStyle='#ffd23f';g.fillText('TURBO STADIUM',W/2,70);});
+  for(const s of [-1,1]){const n=rAdd(new THREE.PlaneGeometry(40,5),new THREE.MeshBasicMaterial({map:nameTex,transparent:true}),cx,10.6,cz+s*(OUT+0.65),null,false);n.rotation.y=s>0?0:Math.PI;n.castShadow=false;}
+  const archTex=cnv(512,96,(g,W,H)=>{g.fillStyle='#14306e';g.fillRect(0,0,W,H);g.font='900 52px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle='#fff';g.fillText('WELCOME TO TURBO STADIUM',W/2,52);});
+  for(const s of [-1,1]){const ax=cx+s*OUT;rAdd(new RAW.Box(1.4,7,2*TUN+1.4),new THREE.MeshLambertMaterial({color:0x14306e}),ax,10.5,cz);
+    for(const r of [s>0?Math.PI/2:-Math.PI/2]){const p=rAdd(new THREE.PlaneGeometry(2*TUN+1,2),new THREE.MeshBasicMaterial({map:archTex}),ax+s*0.75,9.5,cz,null,false);p.rotation.y=r;}
+    for(const u of [-1,1]){iadd(P_.box,ax,3.5,cz+u*(TUN+0.4),0,1.6,7,0.8,'#14306e');}
+    // tunnel walls and ceiling so it reads as an entrance
+    rAdd(new RAW.Box(OUT-IN+1,0.6,2*TUN),new THREE.MeshLambertMaterial({color:0x3a3f4a}),cx+s*(IN+(OUT-IN)/2),7.3,cz);}
+  // floodlight pylons in the corners
+  for(const s of [-1,1])for(const u of [-1,1]){const px=cx+s*(OUT-2),pz=cz+u*(OUT-2);iadd(P_.lampPost,px,15,pz,0,4,30,4);
+    const head=rAdd(new RAW.Box(6,3.2,0.6),new THREE.MeshLambertMaterial({color:0x3a3f4a}),px,31,pz);head.lookAt(cx,10,cz);
+    const lit=rAdd(new THREE.PlaneGeometry(5.4,2.6),new THREE.MeshBasicMaterial({color:0xfff6d6}),0,0,0.31,head,false);rCirc(px,pz,0.9);}
+  // goals with nets
+  const netTex=cnv(64,64,(g,W,H)=>{g.clearRect(0,0,W,H);g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=2;for(let i=0;i<=W;i+=8){g.beginPath();g.moveTo(i,0);g.lineTo(i,H);g.stroke();g.beginPath();g.moveTo(0,i);g.lineTo(W,i);g.stroke();}});
+  const netM=new THREE.MeshBasicMaterial({map:netTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}),GW=5.5,GH=3.6,GD=2.5;
+  for(const s of [-1,1]){const gx=cx+s*PL;for(const u of [-1,1]){iadd(P_.cyl,gx,GH/2,cz+u*GW,0,0.18,GH,0.18,'#ffffff');rCirc(gx,cz+u*GW,0.3);}
+    const bar=rAdd(new THREE.CylinderGeometry(0.18,0.18,2*GW,10),mats.white,gx,GH,cz);bar.rotation.x=Math.PI/2;
+    const back=rAdd(new THREE.PlaneGeometry(2*GW,GH),netM,gx+s*GD,GH/2,cz,null,false);back.rotation.y=Math.PI/2;back.material.map.repeat&&0;
+    const top=rAdd(new THREE.PlaneGeometry(GD,2*GW),netM,gx+s*GD/2,GH,cz,null,false);top.rotation.x=-Math.PI/2;
+    for(const u of [-1,1]){const sd=rAdd(new THREE.PlaneGeometry(GD,GH),netM,gx+s*GD/2,GH/2,cz+u*GW,null,false);}
+    rBox(gx+s*0.2,cz-GW,gx+s*(GD+0.3),cz+GW);}
+  // scoreboard on the east end
+  const sbC=document.createElement('canvas');sbC.width=512;sbC.height=160;const sbT=new THREE.CanvasTexture(sbC);
+  const sb=rAdd(new RAW.Box(0.8,6,16),new THREE.MeshLambertMaterial({color:0x22252e}),cx+OUT-1,19,cz);const face=rAdd(new THREE.PlaneGeometry(15,5),new THREE.MeshBasicMaterial({map:sbT}),cx+OUT-1.45,19,cz,null,false);face.rotation.y=-Math.PI/2;
+  iadd(P_.lampPost,cx+OUT-1,14.5,cz-5,0,3,9,3);iadd(P_.lampPost,cx+OUT-1,14.5,cz+5,0,3,9,3);
+  roam.score2={c:sbC,t:sbT,reds:0,blues:0};drawScore();
+  // the ball
+  const bc=cnv(256,128,(g,W,H)=>{g.fillStyle='#ffffff';g.fillRect(0,0,W,H);g.fillStyle='#1d1b26';for(let y=0;y<4;y++)for(let x=0;x<8;x++)if((x+y)%2){g.beginPath();const px=x*32+16,py=y*32+16;for(let k=0;k<5;k++){const a=k/5*Math.PI*2;g.lineTo(px+Math.cos(a)*11,py+Math.sin(a)*11);}g.fill();}});
+  const ball=new THREE.Mesh(new THREE.SphereGeometry(1.3,28,20),new THREE.MeshPhongMaterial({map:bc,shininess:40}));ball.castShadow=true;ball.position.set(cx,1.3,cz);rScene.add(ball);
+  roam.ball={m:ball,pos:new THREE.Vector3(cx,1.3,cz),vel:new THREE.Vector3(),cx,cz,IN,PL,GW,GD,resetT:0};
+  // flags on the roofs
+  for(const s of [-1,1])for(let i=-2;i<=2;i++){const fx=cx+i*12,fz=cz+s*(OUT-0.5);iadd(P_.lampPost,fx,16.5,fz,0,0.6,5,0.6);iadd(P_.box,fx+0.9,18.3,fz,0,1.8,1.1,0.08,i%2?'#ff3b5c':'#2a64c9');}}
+function drawScore(){const S=roam.score2;if(!S)return;const g=S.c.getContext('2d');g.fillStyle='#111';g.fillRect(0,0,512,160);g.font='900 44px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';
+  g.fillStyle='#ff3b5c';g.fillText('REDS',110,45);g.fillStyle='#4f8fff';g.fillText('BLUES',402,45);g.fillStyle='#ffd23f';g.font='900 86px "Luckiest Guy",Nunito,sans-serif';g.fillText(S.reds+' - '+S.blues,256,108);S.t.needsUpdate=true;}
+function stepBall(dt,k){const B=roam.ball;if(!B)return;const p=B.pos,v=B.vel;
+  if(B.resetT>0){B.resetT-=dt;if(B.resetT<=0){p.set(B.cx,1.3,B.cz);v.set(0,0,0);}}
+  // kick: kart hits the ball
+  const dx=p.x-k.pos.x,dz=p.z-k.pos.z,d=Math.hypot(dx,dz),r=1.3+1.4;
+  if(d<r&&d>1e-4&&k.y<2.5){const nx=dx/d,nz=dz/d;p.x=k.pos.x+nx*r;p.z=k.pos.z+nz*r;const kv=new THREE.Vector3(Math.sin(k.h)*k.speed,0,Math.cos(k.h)*k.speed),along=kv.x*nx+kv.z*nz;
+    if(along>0){v.x=nx*along*1.35+kv.x*0.25;v.z=nz*along*1.35+kv.z*0.25;v.y=Math.min(9,along*0.18);tone(160,90,0.08,'triangle',0.08);}}
+  v.y-=26*dt;p.addScaledVector(v,dt);if(p.y<1.3){p.y=1.3;v.y=-v.y*0.45;if(Math.abs(v.y)<1)v.y=0;}
+  const fr=Math.pow(0.55,dt);v.x*=fr;v.z*=fr;
+  // goals
+  const lx=p.x-B.cx,lz=p.z-B.cz;
+  if(B.resetT<=0&&Math.abs(lx)>B.PL+0.6&&Math.abs(lz)<B.GW-0.4&&p.y<3.6){const S=roam.score2;if(lx>0)S.reds++;else S.blues++;drawScore();B.resetT=2.2;
+    showMsg('GOOOAL!',2);try{finalLapJingle();mus.fast=1;}catch(e){}v.multiplyScalar(0.2);}
+  // bounce off the goal net / stands
+  if(Math.abs(lx)>B.PL+B.GD-1.3&&Math.abs(lz)<B.GW){p.x=B.cx+Math.sign(lx)*(B.PL+B.GD-1.3);v.x=-v.x*0.3;}
+  const lim=B.IN-1.4;if(Math.abs(p.x-B.cx)>lim&&Math.abs(lz)>6){p.x=B.cx+Math.sign(p.x-B.cx)*lim;v.x=-v.x*0.6;}if(Math.abs(p.z-B.cz)>lim){p.z=B.cz+Math.sign(p.z-B.cz)*lim;v.z=-v.z*0.6;}
+  if(Math.abs(p.x-B.cx)>B.IN+12){p.set(B.cx,1.3,B.cz);v.set(0,0,0);}
+  B.m.position.copy(p);const sp=Math.hypot(v.x,v.z);if(sp>0.05){const ax=new THREE.Vector3(v.z,0,-v.x).normalize();B.m.rotateOnWorldAxis(ax,sp*dt/1.3);}}
 function ribbon(pts,width,mat,y){const c=new THREE.CatmullRomCurve3(pts),n=60,pos=[],uv=[],idx=[];
   for(let i=0;i<=n;i++){const p=c.getPoint(i/n),t=c.getTangent(i/n),nx=-t.z,nz=t.x,l=Math.hypot(nx,nz)||1;
     pos.push(p.x+nx/l*width/2,y,p.z+nz/l*width/2,p.x-nx/l*width/2,y,p.z-nz/l*width/2);uv.push(0,i/3,1,i/3);if(i<n){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
@@ -2276,7 +2353,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
     if(c.hit){c.t+=dt;c.v.y-=30*dt;c.m.position.addScaledVector(c.v,dt);c.m.rotation.x+=c.spin*dt;c.m.rotation.z+=c.spin*0.7*dt;
       if(c.m.position.y<0.4){c.m.position.y=0.4;c.v.multiplyScalar(0.5);c.v.y=Math.abs(c.v.y)*0.3;c.spin*=0.5;}
       if(c.t>6){c.hit=false;c.m.position.copy(c.home);c.m.rotation.set(0,0,0);}}}
-  for(const car of roam.cars)stepCar(car,dt);
+  for(const car of roam.cars)stepCar(car,dt);stepBall(dt,k);
   roam.t=(roam.t||0)+dt;animTown(dt,roam.t);rSun.position.set(k.pos.x+60,110,k.pos.z+40);rSun.target.position.set(k.pos.x,0,k.pos.z);if(rScene.userData.sky)rScene.userData.sky.position.copy(camera.position);
   // kart visuals
   const y=k.hop>0?Math.sin((0.22-k.hop)/0.22*Math.PI)*0.7:0;k.group.position.set(k.pos.x,k.y+y,k.pos.z);k.shadow.position.y=k.g-k.y-y+0.07;k.group.rotation.y=k.h;
