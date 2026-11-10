@@ -51,6 +51,9 @@ body.touch #speed{bottom:calc(clamp(12px,3vmin,22px) + env(safe-area-inset-botto
 .townBtn{font-size:clamp(22px,4.4vmin,32px)!important;padding:16px 10px!important;background:linear-gradient(180deg,#3ee08f,#12a86a)!important;box-shadow:0 6px 0 #0b6b44,0 0 28px rgba(62,224,143,.55)!important;color:#fff!important;animation:townPulse 2.2s ease-in-out infinite;margin-bottom:4px}
 @keyframes townPulse{50%{transform:scale(1.03)}}.townSub{text-align:center;opacity:.75;font-size:13px;margin-bottom:10px}
 #tpanel .seg{margin-bottom:10px}
+body.roam #mini{cursor:pointer;pointer-events:auto}
+#bigmap{position:fixed;inset:0;z-index:40;background:rgba(10,14,40,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:max(10px,env(safe-area-inset-top)) 10px}
+#bmc{width:min(94vw,86vh);height:min(94vw,86vh);border-radius:22px;box-shadow:0 10px 40px rgba(0,0,0,.5)}#bmTip{font:400 13px 'Luckiest Guy',cursive;opacity:.7;margin-top:8px}
 body.roam #pos,body.roam #itemBox,body.roam #gpTag,body.roam #goal,body.roam #touch [data-k=item]{visibility:hidden}
 body.roam #time{color:#ffd23f}
 #story .card.stCard{max-width:1000px;width:min(1000px,96vw)}.stHead{display:flex;align-items:center;gap:14px;margin-bottom:10px}.stHead h1{font-size:clamp(28px,5vmin,46px);margin:0}.stHead>div:first-child{flex:1}
@@ -420,6 +423,7 @@ td.pts{color:#7ee7c6;width:52px}
   </div>
 </div>
 
+<div id="bigmap" class="hidden"><canvas id="bmc" width="1200" height="1200"></canvas><div id="bmTip">TAP THE MAP OR PRESS M TO CLOSE</div></div>
 <div id="tpanel" class="panel hidden"><div class="card"><h2 id="tpTitle"></h2><div class="note" id="tpSub"></div><div id="tpBody"></div><button class="ghost" id="tpCancel" style="margin-top:8px">NOT NOW</button></div></div>
 <div id="results" class="panel hidden">
   <div class="card">
@@ -1154,7 +1158,7 @@ addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;co
   if(e.repeat)return;
   if((e.code==='KeyE'||e.code==='KeyX'||e.code==='KeyF')&&player&&state==='race'&&!paused)useItem(player);
   if(e.code==='KeyP'||e.code==='Escape')togglePause();
-  if(e.code==='KeyM'){muted=!muted;applyMute();}});
+  if(e.code==='KeyM'){if(state==='roam'&&player){toggleBigMap();return;}muted=!muted;applyMute();}});
 addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)keys[k]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&!paused&&!net&&(state==='race'||state==='countdown'))togglePause();});
@@ -1459,7 +1463,7 @@ function renderCup(){$('cupSel').innerHTML=CUPS.map(c=>`<button data-c="${c.id}"
   $('gpInfo').innerHTML=cupOf(cupId).tracks.map((id,i)=>{const d=TRACKS.find(t=>t.id===id);return '<span>'+(i+1)+'. '+d.emoji+' '+d.name+'</span>';}).join('')+'<span style="background:none;opacity:.7">Points: 10 · 7 · 5 · 3 · 2 · 1</span>';}
 
 function togglePause(){
-  if(!$('tpanel').classList.contains('hidden'))return;
+  if(!$('tpanel').classList.contains('hidden')||!$('bigmap').classList.contains('hidden'))return;
   if(state==='roam'){$('restartBtn').classList.remove('hidden');$('restartBtn').textContent='BACK TO START';$('quitBtn').textContent='MAIN MENU';$('resumeBtn').textContent='KEEP DRIVING';paused=!paused;$('pause').classList.toggle('hidden',!paused);if(paused)for(const k in keys)keys[k]=false;return;}
   $('restartBtn').textContent='RESTART RACE';
   if(state!=='race'&&state!=='countdown'&&state!=='finished')return;
@@ -2608,10 +2612,11 @@ function startRoam(spawn){initAudio();$('tpanel').classList.add('hidden');if(mod
     spinT:0,spinA:0,rollT:0,item:null,item2:null,finished:false,rank:1,lap:0,idx:0,baseMax:st.max,maxSpeed:st.max,accel:st.acc,turnRate:st.turn,offMul:Math.max(0.7,st.off)});
   player.group.traverse(o=>{if(o.isMesh)o.castShadow=true;});player.shadow.visible=false;if(!renderer.shadowMap.enabled){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
   roam.q=0;roam.fa=roam.fn=0;rSun.castShadow=true;
+  setTimeout(()=>{try{if(state==='roam'&&!roam.bmBg)drawBigMap();}catch(e){}},2500);
   player.y=groundAt(player.pos.x,player.pos.z);roam.inTrig=null;if(spawn&&roam.trigs){let b=null,bd=1e9;for(const t of roam.trigs){const d=Math.hypot(t.x-player.pos.x,t.z-player.pos.z);if(d<bd){bd=d;b=t;}}if(bd<30)roam.inTrig=b;}
   roam.kart=player;roam.score=0;roam.chain=0;roam.best=+(localStorage.getItem('turboTrails_driftBest')||0);
   karts=[];state='roam';camera.fov=70;camFollow(player,camera,0,true);showMsg('TURBO TOWN',2.2);$('msg').classList.add('title');playSong(2);drawRoamMap(true);}
-function leaveRoam(){townRet=null;$('tpanel').classList.add('hidden');camera.far=2500;camera.updateProjectionMatrix();document.body.classList.remove('roam');if(roam&&roam.kart){rScene.remove(roam.kart.group);disposeGroup(roam.kart.group);roam.kart=null;}player=null;mode=menuMode||'single';toMenu();}
+function leaveRoam(){townRet=null;$('bigmap').classList.add('hidden');$('tpanel').classList.add('hidden');camera.far=2500;camera.updateProjectionMatrix();document.body.classList.remove('roam');if(roam&&roam.kart){rScene.remove(roam.kart.group);disposeGroup(roam.kart.group);roam.kart=null;}player=null;mode=menuMode||'single';toMenu();}
 function roamCollide(k){const kr=1.35;let hit=0;
   for(const b of rCol.boxes){const cx=clamp(k.pos.x,b.x0,b.x1),cz=clamp(k.pos.z,b.z0,b.z1),dx=k.pos.x-cx,dz=k.pos.z-cz,d2=dx*dx+dz*dz;
     if(d2<kr*kr){if(d2<1e-6){// inside: push out along the shortest axis
@@ -2729,22 +2734,21 @@ function buildLobby(R){const e=RE.find(e=>e.a.id==='A'&&e.b.id==='I0');let along
     rLBox(x,z,yaw,-W/2,-D/2,W/2,-D/2+0.8);rLBox(x,z,yaw,-W/2,-D/2,-W/2+0.8,D/2);rLBox(x,z,yaw,W/2-0.8,-D/2,W/2,D/2);rLBox(x,z,yaw,-W/2,D/2-0.8,-W/2+4,D/2);rLBox(x,z,yaw,W/2-4,D/2-0.8,W/2,D/2);
     rasRect(x,z,yaw,W/2+2,D/2+6,2);
     const [tx,tz]=lw(x,z,yaw,0,D/2-2.5);addTrig({x:tx,z:tz,r:3.6,kind:garage?'garage':'makeover',out:{x:p.x+nx*s*3.6,z:p.z+nz*s*3.6,h:th+(s>0?0:Math.PI)}});
-    marker(garage?'🔧 GARAGE':'💄 MAKEOVER',garage?'#1f4fa8':'#d6336c',x,H+6,z,13);(roam.icons=roam.icons||[]).push({x,z,t:garage?'🔧':'💄'});}
+    marker(garage?'🔧 GARAGE':'💄 MAKEOVER',garage?'#1f4fa8':'#d6336c',x,H+6,z,13);(roam.icons=roam.icons||[]).push({x,z,t:garage?'🔧':'💄',n:garage?'Garage':'Makeover'});}
   // signpost to the portals at the central roundabout
-  {const sp=roamSign('🌀 PORTALS ↖','#8338ec');sp.position.set(-26,0,-26);sp.rotation.y=Math.PI/4;rScene.add(sp);}
   // track gates
   for(const [id,tid] of TRACK_GATES){const n=nodeById(id[0]==='C'?'T'+id:id),def=TRACKS.find(t=>t.id===tid),ed=n.edges[0],c=ed.dir?ed.e.c.slice().reverse():ed.e.c,a=c[Math.max(0,c.length-8)],
       dx2=n.x-a.x,dz2=n.z-a.z,l2=Math.hypot(dx2,dz2),ux=dx2/l2,uz=dz2/l2,yaw=Math.atan2(-ux,-uz),y=n.y||0,col='#'+new THREE.Color(def.sky).getHexString();
     portalGate(n.x+ux*4,n.z+uz*4,yaw,col,def.emoji+' '+def.name.toUpperCase(),y);rasDisc(n.x,n.z,20,2);
     addTrig({x:n.x+ux*4,z:n.z+uz*4,r:4.2,kind:'track',track:tid,out:{x:n.x-ux*24,z:n.z-uz*24,h:Math.atan2(-ux,-uz)}});
-    marker(def.emoji+' '+def.name.toUpperCase(),'#14183a',n.x,y+19,n.z,16);(roam.icons=roam.icons||[]).push({x:n.x,z:n.z,t:def.emoji});
+    marker(def.emoji+' '+def.name.toUpperCase(),'#14183a',n.x,y+19,n.z,16);(roam.icons=roam.icons||[]).push({x:n.x,z:n.z,t:def.emoji,n:def.name});
     // road sign at the junction pointing down the road
     const j=ed.e.a===n?ed.e.b:ed.e.a;if(id[0]==='C'){const c0=ed.e.a===n?ed.e.c.slice().reverse():ed.e.c,b=c0[Math.min(12,c0.length-1)],bb=c0[Math.min(16,c0.length-1)],tx=bb.x-b.x,tz=bb.z-b.z,tl=Math.hypot(tx,tz);
       const sg=roamSign(def.emoji+' '+def.name.toUpperCase(),'#1f4fa8');sg.position.set(b.x+tz/tl*(RH+4),b.y,b.z-tx/tl*(RH+4));sg.rotation.y=Math.atan2(tx,tz);sg.scale.setScalar(0.8);rScene.add(sg);}}}
 ZB.portals=function(x,z,w,R){const h=w/2;groundPlane(x,z,w,w,mats.pave,3);
   const ring=rAdd(new THREE.RingGeometry(14,16,48),new THREE.MeshLambertMaterial({color:0x8338ec}),x,0.03,z,null,false);ring.rotation.x=-Math.PI/2;
   const P=[['story','📖 STORY MODE','#ffc93c'],['gp','🏆 GRAND PRIX','#b083ff'],['online','🌐 ONLINE & TV','#2de2ff']];
-  P.forEach(([k,label,col],i)=>{const px=x-22+i*22,pz=z;portalGate(px,pz,0,col,label);addTrig({x:px,z:pz,r:4.2,kind:k,out:{x:px,z:pz+18,h:0}});(roam.icons=roam.icons||[]).push({x:px,z:pz,t:'🌀'});});
+  P.forEach(([k,label,col],i)=>{const px=x-22+i*22,pz=z;portalGate(px,pz,0,col,label);addTrig({x:px,z:pz,r:4.2,kind:k,out:{x:px,z:pz+18,h:0}});(roam.icons=roam.icons||[]).push({x:px,z:pz,t:['📖','🏆','🌐'][i],n:['Story','Grand Prix','Online & TV'][i]});});
   marker('🌀 PORTALS','#8338ec',x,24,z,16);
   for(let a=0;a<Math.PI*2;a+=Math.PI/6)lamp(x+Math.cos(a)*(h-3),z+Math.sin(a)*(h-3));};
 // ---- trigger panels ----
@@ -2770,6 +2774,21 @@ function townTriggers(k){if(!roam.trigs)return;if(roam.inTrig){const t=roam.inTr
     if(t.kind==='garage'||t.kind==='makeover'){leaveTownFor(t,()=>{toMenuCore();$('menu').classList.add('hidden');openGarage();const b=document.querySelector('#gTabs button[data-t='+(t.kind==='garage'?'kart':'driver')+']');if(b)b.click();});return;}
     if(t.kind==='story'){leaveTownFor(t,()=>{openStory();});return;}
     openTownPanel(t);return;}}
+function toggleBigMap(){const el=$('bigmap'),open=el.classList.contains('hidden');if(open&&(paused||!player))return;el.classList.toggle('hidden',!open);paused=open;if(open){engineOff();for(const k in keys)keys[k]=false;drawBigMap();}}
+function drawBigMap(){const c=$('bmc'),g=c.getContext('2d'),S=c.width,sc=S/(WB*2),X=v=>(v+WB)*sc;
+  if(!roam.bmBg){const bc=document.createElement('canvas');bc.width=bc.height=S;roam.bmBg=bc;const g=bc.getContext('2d'),Q=2;
+  const img=g.createImageData(S,S);for(let y=0;y<S;y+=Q)for(let x=0;x<S;x+=Q){const wx=x/sc-WB,wz=y/sc-WB,h=terrainH(wx,wz),h2=terrainH(wx+6,wz+6),sh=clamp((h-h2)*6,-40,40);
+    let r=78,gg=140,b=70;if(h>70){const t=clamp((h-70)/80,0,1);r+=t*60;gg+=t*-10;b+=t*60;}if(h>125){r=gg=b=235;}for(let dy=0;dy<Q;dy++)for(let dx=0;dx<Q;dx++){const k=((y+dy)*S+x+dx)*4;img.data[k]=clamp(r+sh,0,255);img.data[k+1]=clamp(gg+sh,0,255);img.data[k+2]=clamp(b+sh,0,255);img.data[k+3]=255;}}
+  g.putImageData(img,0,0);g.drawImage(roamImg,0,0,S,S);}
+  g.drawImage(roam.bmBg,0,0);
+  const ics=roam.icons||[],grp=(names,t,n)=>{const L=ics.filter(i=>names.includes(i.n));if(!L.length)return null;return {x:L.reduce((a,i)=>a+i.x,0)/L.length,z:L.reduce((a,i)=>a+i.z,0)/L.length,t,n};};
+  const list=[grp(['Story','Grand Prix','Online & TV'],'🌀','Portals'),grp(['Garage','Makeover'],'🔧','Garage & Makeover')].concat(ics.filter(i=>i.n&&!['Story','Grand Prix','Online & TV','Garage','Makeover'].includes(i.n))).filter(Boolean);
+  g.textBaseline='middle';for(const ic of list){const x=X(ic.x),y=X(ic.z);g.fillStyle='rgba(20,24,58,.92)';g.beginPath();g.arc(x,y,24,0,7);g.fill();g.strokeStyle='#fff';g.lineWidth=3;g.stroke();
+    g.font='28px sans-serif';g.textAlign='center';g.fillStyle='#fff';g.fillText(ic.t,x,y+2);
+    g.font='900 24px Nunito,sans-serif';g.textAlign='left';g.lineWidth=6;g.strokeStyle='rgba(15,18,45,.95)';g.strokeText(ic.n,x+30,y);g.fillText(ic.n,x+30,y);}
+  g.fillStyle='#ffd23f';g.font='900 26px Nunito,sans-serif';g.textAlign='center';g.lineWidth=6;g.strokeText('TURBO TOWN',X(0),X(150));g.fillText('TURBO TOWN',X(0),X(150));
+  if(player){g.save();g.translate(X(player.pos.x),X(player.pos.z));g.rotate(-player.h);g.fillStyle=hexOf(kartCfg.body);g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.moveTo(0,16);g.lineTo(11,-11);g.lineTo(-11,-11);g.closePath();g.fill();g.stroke();g.restore();
+    g.font='900 20px Nunito,sans-serif';g.lineWidth=5;g.strokeText('YOU',X(player.pos.x),X(player.pos.z)-22);g.fillStyle='#fff';g.fillText('YOU',X(player.pos.x),X(player.pos.z)-22);}}
 function townLabels(){if(!townRet)return;for(const id of ['menuBtn','gpMenuBtn','quitBtn'])if($(id).textContent==='MAIN MENU')$(id).textContent='BACK TO TOWN';}
 
 // ---------- online multiplayer ----------
@@ -3096,6 +3115,7 @@ renderCup();
 $('restartBtn').onclick=()=>{if(state==='roam'){paused=false;$('pause').classList.add('hidden');startRoam();return;}startRace();};
 $('roamBtn').onclick=()=>{townRet=null;startRoam();};
 $('tpCancel').onclick=()=>closeTownPanel();
+$('mini').addEventListener('click',()=>{if(state==='roam')toggleBigMap();});$('bigmap').onclick=()=>toggleBigMap();
 $('resumeBtn').onclick=()=>togglePause();
 $('pauseBtn').onclick=()=>togglePause();
 function toMenu(){toMenuCore();if(townRet){const r=townRet;townRet=null;startRoam(r);}}
