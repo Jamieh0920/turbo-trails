@@ -1917,8 +1917,8 @@ function defineCountry(){const C=[];const N=11;
 // --- road height profiles: follow the land, smoothed, max ~8% grade ---
 function profileEdge(e){const c=e.c,n=c.length,h=new Float32Array(n),s=new Float32Array(n);for(let i=0;i<n;i++){h[i]=baseH(c[i].x,c[i].z);if(i)s[i]=s[i-1]+c[i].distanceTo(c[i-1]);}
   const sm=new Float32Array(n);for(let i=0;i<n;i++){let a=0,w=0;for(let j=i-1;j>=0&&s[i]-s[j]<55;j--){a+=h[j];w++;}for(let j=i;j<n&&s[j]-s[i]<55;j++){a+=h[j];w++;}sm[i]=a/w;}
-  sm[0]=e.a.y||0;sm[n-1]=e.b.y||0;
-  for(let it=0;it<4;it++){sm[0]=e.a.y||0;sm[n-1]=e.b.y||0;for(let i=1;i<n-1;i++)sm[i]=clamp(sm[i],sm[i-1]-0.08*(s[i]-s[i-1]),sm[i-1]+0.08*(s[i]-s[i-1]));for(let i=n-2;i>=1;i--)sm[i]=clamp(sm[i],sm[i+1]-0.08*(s[i+1]-s[i]),sm[i+1]+0.08*(s[i+1]-s[i]));}
+  const deg=nd=>RE.filter(x=>x.a===nd||x.b===nd).length,pa=deg(e.a)>=3,pb=deg(e.b)>=3,pin=()=>{for(let i=0;i<n;i++){if(pa&&s[i]<18)sm[i]=e.a.y||0;if(pb&&s[n-1]-s[i]<18)sm[i]=e.b.y||0;}sm[0]=e.a.y||0;sm[n-1]=e.b.y||0;};
+  for(let it=0;it<4;it++){pin();for(let i=1;i<n-1;i++)sm[i]=clamp(sm[i],sm[i-1]-0.08*(s[i]-s[i-1]),sm[i-1]+0.08*(s[i]-s[i-1]));for(let i=n-2;i>=1;i--)sm[i]=clamp(sm[i],sm[i+1]-0.08*(s[i+1]-s[i]),sm[i+1]+0.08*(s[i+1]-s[i]));}pin();
   for(let i=0;i<n;i++)c[i].y=sm[i];}
 // --- terrain heightmap ---
 const TS=6,TN=Math.ceil(2*WB/TS)+1,TH=new Float32Array(TN*TN),TW=new Float32Array(TN*TN),TT=new Float32Array(TN*TN),TD=new Float32Array(TN*TN).fill(1e9);
@@ -1944,7 +1944,7 @@ function rasAt(x,z){const i=rIx(x),j=rIx(z);if(i<0||j<0||i>=RAS_N||j>=RAS_N)retu
 function rasHAt(x,z){const i=rIx(x),j=rIx(z);return rasH[clamp(i,0,RAS_N-1)*RAS_N+clamp(j,0,RAS_N-1)];}
 function rasWAt(x,z){const i=rIx(x),j=rIx(z);return rasW[clamp(i,0,RAS_N-1)*RAS_N+clamp(j,0,RAS_N-1)];}
 // ground under a point: road surface where there is road, else terrain
-function groundAt(x,z){return (rasAt(x,z)&1)?rasHAt(x,z):terrainH(x,z);}
+function groundAt(x,z,y){if(rasAt(x,z)&1){const h=rasHAt(x,z);if(y===undefined||h<=y+1.6)return h;}return terrainH(x,z);}
 function buildHeights(){for(let i=0;i<TN;i++)for(let j=0;j<TN;j++)TH[i*TN+j]=baseH(i*TS-WB,j*TS-WB);
   // flatten corridors along the country roads (cuttings + embankments)
   for(const e of RE)if(e.country)for(const p of e.c)splatFlat(p.x,p.z,p.y-0.25,RH+4,RH+26);
@@ -2185,8 +2185,10 @@ function buildTown(){if(rBuilt)return;rBuilt=true;townParts();defineNetwork();co
       // give way lines across each entry lane
       for(const {e,dir} of n.edges){const ln=e.lanes[dir?0:1],end=ln[ln.length-1];if(!end)continue;const pr=ln[Math.max(0,ln.length-3)],dx=end.x-pr.x,dz=end.z-pr.z,l=Math.hypot(dx,dz)||1;
         for(let q=-2;q<=2;q++){bk('white',white,GW_G,end.x+dz/l*q*1.4+dx/l*1.2,0.11,end.z-dx/l*q*1.4+dz/l*1.2,-Math.PI/2,0,Math.atan2(dx,dz));}}}
-    else{const r=n.cul?13:n.country?RH+3:RH+2.5;const d=rAdd(new THREE.CircleGeometry(r,40),jM,n.x,(n.y||0)+0.08,n.z,null,false);rasDisc(n.x,n.z,r,1,n.y||0);d.rotation.x=-Math.PI/2;rasDisc(n.x,n.z,r+3,3);
-      if(n.cul){const pv=rAdd(new THREE.RingGeometry(r,r+3,40),paveM,n.x,0.16,n.z,null,false);pv.rotation.x=-Math.PI/2;}
+    else if(deg>=3||n.cul){const r=n.cul?13:n.country?RH+2:RH+2.5;const d=rAdd(new THREE.CircleGeometry(r,40),jM,n.x,(n.y||0)+0.08,n.z,null,false);rasDisc(n.x,n.z,r,1,n.y||0);d.rotation.x=-Math.PI/2;rasDisc(n.x,n.z,r+3,3);
+      if(n.cul){const pv=rAdd(new THREE.RingGeometry(r,r+3,40),paveM,n.x,0.16,n.z,null,false);pv.rotation.x=-Math.PI/2;}}
+    else if(deg===2){// plain bend: a small patch the same width as the road so the corner has no notch
+      const d=rAdd(new THREE.CircleGeometry(RH,32),jM,n.x,(n.y||0)+0.045,n.z,null,false);d.rotation.x=-Math.PI/2;rasDisc(n.x,n.z,RH,1,n.y||0);
       // zebra crossings + Belisha beacons on the approaches to proper junctions
       if(deg>=3&&!n.country)for(const {e,dir} of n.edges){const c=dir?e.c.slice().reverse():e.c;let k=0;while(k<c.length-1&&Math.hypot(c[k].x-n.x,c[k].z-n.z)<RH+6)k++;const p=c[k],q=c[Math.min(k+1,c.length-1)],dx=q.x-p.x,dz=q.z-p.z,l=Math.hypot(dx,dz)||1,nx=dz/l,nz=-dx/l;
         for(let s=-3;s<=3;s++)bk('white',white,ZB_G1,p.x+nx*s*2.2,0.11,p.z+nz*s*2.2,-Math.PI/2,0,Math.atan2(nx,nz));
@@ -2617,7 +2619,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
   k.steerVis+=(steer-k.steerVis)*Math.min(1,dt*10);const sf=Math.min(1,Math.abs(k.speed)/10)*(k.speed<0?-1:1)*(k.air?0.35:1);k.h+=turn*sf*dt;
   const px=k.pos.x,pz=k.pos.z,rPrev=rampH(px,pz);k.pos.x+=Math.sin(k.h)*k.speed*dt;k.pos.z+=Math.cos(k.h)*k.speed*dt;
   roamCollide(k);
-  const GA=(x,z)=>groundAt(x,z)+rampH(x,z);let g=GA(k.pos.x,k.pos.z);const mv=Math.hypot(k.pos.x-px,k.pos.z-pz);
+  const GA=(x,z)=>groundAt(x,z,k.y)+rampH(x,z);let g=GA(k.pos.x,k.pos.z);const mv=Math.hypot(k.pos.x-px,k.pos.z-pz);
   if(!k.air&&g>k.y+Math.max(0.7,mv*1.05)){k.pos.x=px;k.pos.z=pz;if(Math.abs(k.speed)>6)sfx.bonk();k.speed*=-0.25;g=GA(px,pz);}
   else if(!k.air&&mv>0.02&&rPrev<0.05)k.speed-=clamp((g-k.y)/mv,-0.6,0.6)*20*dt*Math.sign(k.speed||1);
   if(k.air){k.vy-=34*dt;k.y+=k.vy*dt;k.airT+=dt;if(k.y<=g){k.y=g;k.air=false;k.hop=0.14;k.vyG=0;if(k.airT>0.55){k.boostT=Math.max(k.boostT,0.55);showMsg('BIG AIR!',0.8);sfx.boost();}else sfx.land();}}
@@ -2626,7 +2628,8 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
     else{k.vyG=clamp((g-k.y)/dt,-30,30)*0.6+(k.vyG||0)*0.4;k.y=g;}}
   k.g=g;
   // rivers: splash and back to the road
-  const rb=rasAt(k.pos.x,k.pos.z);if(!(rb&1)&&(rb&8)&&!k.air&&k.y<rasWAt(k.pos.x,k.pos.z)-0.4){showMsg('SPLASH!',1.4,true);tone(500,120,0.5,'sawtooth',0.06);const s0=roam.safe||{x:-3.6,z:72,h:Math.PI};k.pos.set(s0.x,0,s0.z);k.h=s0.h;k.speed=0;k.y=groundAt(s0.x,s0.z);k.vyG=0;}
+  const rb0=rasAt(k.pos.x,k.pos.z),onRd=(rb0&1)&&rasHAt(k.pos.x,k.pos.z)<=k.y+1.6,rb=onRd?rb0:(rb0&~1);if(!(rb&1)&&(rb&8)&&!k.air&&k.y<rasWAt(k.pos.x,k.pos.z)-0.4){showMsg('SPLASH!',1.4,true);tone(500,120,0.5,'sawtooth',0.06);const s0=roam.safe||{x:-3.6,z:72,h:Math.PI};k.pos.set(s0.x,0,s0.z);k.h=s0.h;k.speed=0;k.y=groundAt(s0.x,s0.z);k.vyG=0;}
+  if(inp.throttle>0&&mv<0.03&&!k.air){roam.stuckT=(roam.stuckT||0)+dt;if(roam.stuckT>3){roam.stuckT=0;const s0=roam.safe||{x:-3.6,z:72,h:Math.PI};k.pos.set(s0.x,0,s0.z);k.h=s0.h;k.speed=0;k.y=groundAt(s0.x,s0.z);k.vyG=0;showMsg('BACK ON THE ROAD',1.4);}}else roam.stuckT=0;
   roam.safeT=(roam.safeT||0)-dt;if((rb&1)&&!k.air&&roam.safeT<=0){roam.safe={x:k.pos.x,z:k.pos.z,h:k.h};roam.safeT=0.7;}
   if(k.hop>0)k.hop-=dt;
   for(const p of roam.pads||[])if(!k.air&&Math.hypot(k.pos.x-p.x,k.pos.z-p.z)<p.r&&k.boostT<0.5){k.boostT=1.2;sfx.boost();}
@@ -2646,7 +2649,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
   if(k.rig){k.rig.t+=dt;poseDriver(k.rig,k.steerVis,0,false);}
   k.flame.visible=k.boostT>0;if(k.flame.visible){const s=0.8+Math.random()*0.5;k.flame.scale.set(1,s,1);}
   const col=k.charge>=1.7?0xff8a00:k.charge>=0.8?0x33aaff:0xfff3b0;for(const s of k.sparks){s.visible=k.drifting;if(k.drifting){s.material.color.setHex(col);const r=0.6+Math.random()*0.8;s.scale.set(r,r,r);}}
-  camFollow(k,camera,dt);{const cg=groundAt(camera.position.x,camera.position.z)+1.8;if(camera.position.y<cg)camera.position.y=cg;}
+  camFollow(k,camera,dt);{const cg=groundAt(camera.position.x,camera.position.z,camera.position.y-1.8)+1.8;if(camera.position.y<cg)camera.position.y=cg;}
   // automatic quality: if frames are slow, draw less detail
   roam.fa=(roam.fa||0)+dt;roam.fn=(roam.fn||0)+1;if(roam.fa>3){const fps=roam.fn/roam.fa;roam.fa=roam.fn=0;roam.q=roam.q===undefined?0:roam.q;
     if(fps<38&&roam.q<2){roam.q++;if(roam.q===2){rSun.castShadow=false;renderer.shadowMap.needsUpdate=true;}}}
