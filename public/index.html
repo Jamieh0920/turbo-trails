@@ -2245,9 +2245,11 @@ function buildTown(){if(rBuilt)return;rBuilt=true;townParts();defineNetwork();co
   // zones (reserved first so houses don't land on them)
   const Z=[['park',-78,-78,88],['drift',78,-78,88],['stadium',-78,78,88],['skate',78,78,88],
     ['school',113,-267,76],['supermarket',268,-108,76],['towers',268,110,76],['industrial',112,268,76],['church',-109,268,70],['petrol',-262,108,56],['lake',-265,-112,80],['portals',PLAZA.x,PLAZA.z,76]];
-  for(const zn of Z){const [t,x0,z0,w]=zn;let ok=t==='portals';for(let r=0;r<=60&&!ok;r+=4)for(let a=0;a<Math.PI*2&&!ok;a+=r?Math.PI/8:7){const x=x0+Math.cos(a)*r,z=z0+Math.sin(a)*r;if(rasRect(x,z,0,w/2+3,w/2+3,0,3)){zn[1]=x;zn[2]=z;ok=true;}}
-    if(!ok)console.warn('no room for zone',t);rasRect(zn[1],zn[2],0,w/2+3,w/2+3,2);}
-  for(const [t,x,z,w] of Z){if(['park','drift','skate','stadium','towers'].includes(t))buildBlock(t,x,z,w,R);else ZB[t](x,z,w,R);}
+  for(const zn of Z){const [t,x0,z0]=zn;let ok=t==='portals';
+    const minW=['stadium','park','drift','skate','towers'].includes(t)?zn[3]:zn[3]*0.7;for(let w=zn[3];w>=minW&&!ok;w-=4)for(let r=0;r<=130&&!ok;r+=4)for(let a=0;a<Math.PI*2&&!ok;a+=r?Math.PI/12:7){const x=x0+Math.cos(a)*r,z=z0+Math.sin(a)*r;
+      if(Math.abs(x)+w/2<BND-10&&Math.abs(z)+w/2<BND-10&&rasRect(x,z,0,w/2+3,w/2+3,0,3)){zn[1]=x;zn[2]=z;zn[3]=w;ok=true;}}
+    zn.ok=ok;if(!ok){console.warn('no room for zone',t);continue;}rasRect(zn[1],zn[2],0,zn[3]/2+3,zn[3]/2+3,2);}
+  for(const zn of Z){if(!zn.ok)continue;const [t,x,z,w]=zn;if(['park','drift','skate','stadium','towers'].includes(t))buildBlock(t,x,z,w,R);else ZB[t](x,z,w,R);}
   // landmarks on the roundabouts
   roam.statueTop=plinth(0,0,3.2,2.6);plaque(0,0,0,'OUR CHAMPION\nTurbo Tour 2026').position.set(0,2.6,3.35);rCirc(0,0,4.6);
   const O0=nodeById('O0'),O2=nodeById('O2'),O4=nodeById('O4'),O6=nodeById('O6');
