@@ -2018,15 +2018,15 @@ function towerBlock(x,z,w,d,h,R){const t=new THREE.CanvasTexture(TX.facades[(R()
   if(R()<0.3)rAdd(new THREE.CylinderGeometry(0.15,0.25,9,6),new THREE.MeshLambertMaterial({color:0xdddddd}),x-w*0.2,h+8,z+d*0.2);
   rBox(x-w/2-0.7,z-d/2-0.7,x+w/2+0.7,z+d/2+0.7);}
 // ---- street furniture ----
-function lamp(x,z){if(!rbClear(x,z,1.5))return;iadd(P_.lampPost,x,3,z,0,1,6,1);iadd(P_.box,x,5.9,z,0,0.5,0.2,0.5,'#3a3f4a');iadd(P_.lantern,x,5.45,z,0,0.42,0.7,0.42);iadd(P_.box,x,5.0,z,0,0.55,0.15,0.55,'#3a3f4a');rCirc(x,z,0.35);}
-function postBox(x,z){iadd(P_.cyl,x,0.75,z,0,0.38,1.5,0.38,'#d7262b');iadd(P_.flower,x,1.5,z,0,0.4,0.25,0.4,'#d7262b');iadd(P_.box,x,1.15,z+0.36,0,0.4,0.08,0.06,'#22252e');rCirc(x,z,0.5);}
-function phoneBox(x,z,yaw){iadd(P_.box,x,1.4,z,yaw,1.15,2.8,1.15,'#d7262b');iadd(P_.box,x,2.95,z,yaw,1.25,0.3,1.25,'#d7262b');
+function lamp(x,z){if(!rbClear(x,z,1.5)||(rasAt(x,z)&4))return;iadd(P_.lampPost,x,3,z,0,1,6,1);iadd(P_.box,x,5.9,z,0,0.5,0.2,0.5,'#3a3f4a');iadd(P_.lantern,x,5.45,z,0,0.42,0.7,0.42);iadd(P_.box,x,5.0,z,0,0.55,0.15,0.55,'#3a3f4a');rCirc(x,z,0.35);}
+function postBox(x,z){if(rasAt(x,z)&4)return;iadd(P_.cyl,x,0.75,z,0,0.38,1.5,0.38,'#d7262b');iadd(P_.flower,x,1.5,z,0,0.4,0.25,0.4,'#d7262b');iadd(P_.box,x,1.15,z+0.36,0,0.4,0.08,0.06,'#22252e');rCirc(x,z,0.5);}
+function phoneBox(x,z,yaw){if(rasAt(x,z)&4)return;iadd(P_.box,x,1.4,z,yaw,1.15,2.8,1.15,'#d7262b');iadd(P_.box,x,2.95,z,yaw,1.25,0.3,1.25,'#d7262b');
   for(let i=0;i<4;i++){const a=yaw+i*Math.PI/2,[wx,wz]=lw(x,z,a,0,0.59);iadd(P_.glass,wx,1.55,wz,a,0.75,1.6,0.04);}rCirc(x,z,0.8);}
 function bench(x,z,yaw){const at=(lx,ly,lz,sx,sy,sz,c)=>{const [wx,wz]=lw(x,z,yaw,lx,lz);iadd(P_.box,wx,ly,wz,yaw,sx,sy,sz,c);};
   at(0,0.55,0,2.4,0.12,0.7,'#8e5b3a');at(0,1.0,-0.33,2.4,0.5,0.1,'#8e5b3a');for(const s of [-1,1])at(s*1.0,0.27,0,0.12,0.55,0.6,'#3a3f4a');rCirc(x,z,1.0);}
-function bin(x,z){if(!rbClear(x,z,1.5))return;iadd(P_.cyl,x,0.5,z,0,0.32,1.0,0.32,'#2e5d3a');rCirc(x,z,0.4);}
-function beacon(x,z){for(let i=0;i<5;i++)iadd(P_.stripeCyl,x,0.3+i*0.6,z,0,0.09,0.6,0.09,i%2?'#ffffff':'#22252e');iadd(P_.beacon,x,3.25,z,0,0.32,0.32,0.32);rCirc(x,z,0.3);}
-function busStop(x,z,yaw){const at=(lx,ly,lz,sx,sy,sz,c,im)=>{const [wx,wz]=lw(x,z,yaw,lx,lz);iadd(im||P_.box,wx,ly,wz,yaw,sx,sy,sz,c);};
+function bin(x,z){if(!rbClear(x,z,1.5)||(rasAt(x,z)&4))return;iadd(P_.cyl,x,0.5,z,0,0.32,1.0,0.32,'#2e5d3a');rCirc(x,z,0.4);}
+function beacon(x,z){if(rasAt(x,z)&4)return;for(let i=0;i<5;i++)iadd(P_.stripeCyl,x,0.3+i*0.6,z,0,0.09,0.6,0.09,i%2?'#ffffff':'#22252e');iadd(P_.beacon,x,3.25,z,0,0.32,0.32,0.32);rCirc(x,z,0.3);}
+function busStop(x,z,yaw){if(rasAt(x,z)&4)return;const at=(lx,ly,lz,sx,sy,sz,c,im)=>{const [wx,wz]=lw(x,z,yaw,lx,lz);iadd(im||P_.box,wx,ly,wz,yaw,sx,sy,sz,c);};
   at(0,2.6,0,4,0.15,1.6,'#3a3f4a');at(0,1.3,-0.75,4,2.4,0.06,undefined,P_.glass);for(const s of [-1,1])at(s*1.95,1.3,0,0.12,2.6,1.4,'#3a3f4a');at(0,0.55,-0.5,3,0.1,0.4,'#8e5b3a');
   const [sx,sz]=lw(x,z,yaw,2.4,0.4);iadd(P_.lampPost,sx,1.4,sz,0,0.6,2.8,0.6);iadd(P_.cyl,sx,2.9,sz,yaw,0.45,0.08,0.45,'#d7262b');
   rLBox(x,z,yaw,-2.1,-0.9,2.1,0.1);}
@@ -2057,7 +2057,7 @@ function flushBK(){for(const k in BK){const L=BK[k].geos;let nv=0,ni=0;for(const
 let rBuilt=false;
 // strip of quads along a sampled curve, offset sideways from the centre line
 function stripMesh(c,o0,o1,y0,y1,mat,vScale,keep){const pos=[],uv=[],idx=[];let v=0,n=0;
-  for(let i=0;i<c.length;i++){if(keep&&!keep(c[i])){n=0;continue;}const p=c[i],q=c[Math.min(i+1,c.length-1)],r=c[Math.max(i-1,0)],dx=q.x-r.x,dz=q.z-r.z,l=Math.hypot(dx,dz)||1,nx=dz/l,nz=-dx/l;
+  for(let i=0;i<c.length;i++){const p=c[i],q=c[Math.min(i+1,c.length-1)],r=c[Math.max(i-1,0)],dx=q.x-r.x,dz=q.z-r.z,l=Math.hypot(dx,dz)||1,nx=dz/l,nz=-dx/l;if(keep&&!keep(p,p.x+nx*(o0+o1)/2,p.z+nz*(o0+o1)/2)){n=0;continue;}
     if(i>0)v+=p.distanceTo(c[i-1])/vScale;pos.push(p.x+nx*o0,y0,p.z+nz*o0,p.x+nx*o1,y1,p.z+nz*o1);uv.push(0,v,1,v);const a=pos.length/3-2;
     if(n>0)idx.push(a-2,a-1,a,a-1,a+1,a);n++;}
   if(!idx.length)return null;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
@@ -2070,8 +2070,9 @@ function buildTown(){if(rBuilt)return;rBuilt=true;townParts();defineNetwork();co
   rBox(-BND-9,-BND-9,BND+9,-BND+2);rBox(-BND-9,BND-2,BND+9,BND+9);rBox(-BND-9,-BND-9,-BND+2,BND+9);rBox(BND-2,-BND-9,BND+9,BND+9);
   // roads, kerbs and pavements
   const roadM=new THREE.MeshLambertMaterial({map:TX.road}),paveM=new THREE.MeshLambertMaterial({map:TX.pave}),kerbM=new THREE.MeshLambertMaterial({color:0xbdb6a6});
+  for(const e of RE)rasLine(e.c,RH+0.5,4);for(const n of RN)rasDisc(n.x,n.z,n.rb?ringOut(n.rb):RH+2.5,4);
   RE.forEach((e,ei)=>{stripMesh(e.c,-RH,RH,0.03+(ei%4)*0.004,0.03+(ei%4)*0.004,roadM,36);
-    const away=p=>Math.hypot(p.x-e.a.x,p.z-e.a.z)>nodeClr(e.a)+1&&Math.hypot(p.x-e.b.x,p.z-e.b.z)>nodeClr(e.b)+1;
+    const away=(p,x,z)=>Math.hypot(p.x-e.a.x,p.z-e.a.z)>nodeClr(e.a)+1&&Math.hypot(p.x-e.b.x,p.z-e.b.z)>nodeClr(e.b)+1&&!(rasAt(x,z)&4);
     for(const s of [-1,1]){stripMesh(e.c,s*RH,s*(RH+3),0.16,0.16,paveM,3,away);stripMesh(e.c,s*RH,s*RH,0.0,0.16,kerbM,3,away);}
     rasLine(e.c,RH+3.2,3);});
   const jM=mats.tarmac,white=new THREE.MeshLambertMaterial({color:0xf2f2f2});
