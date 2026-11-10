@@ -52,6 +52,10 @@ body.touch #speed{bottom:calc(clamp(12px,3vmin,22px) + env(safe-area-inset-botto
 @keyframes townPulse{50%{transform:scale(1.03)}}.townSub{text-align:center;opacity:.75;font-size:13px;margin-bottom:10px}
 #tpanel .seg{margin-bottom:10px}
 body.roam #mini{cursor:pointer;pointer-events:auto}
+#townBtn{display:none}body.roam #townBtn{display:block;pointer-events:auto;position:absolute;right:calc(var(--mini) + clamp(18px,4vmin,26px) + clamp(44px,10vmin,54px) + env(safe-area-inset-right));top:clamp(10px,2.5vmin,18px);min-width:clamp(36px,8vmin,44px);height:clamp(36px,8vmin,44px);padding:0 8px;border-radius:14px;border:2px solid rgba(255,255,255,.8);background:rgba(20,22,50,.55);color:#fff;font:400 15px 'Luckiest Guy',cursive;cursor:pointer}
+#tnCode{font-family:'Luckiest Guy',cursive;font-size:54px;letter-spacing:8px;color:#ffd23f;line-height:1;text-align:center}
+#toast{position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);z-index:45;background:#14183a;border:3px solid #ffd23f;border-radius:18px;padding:10px 18px;color:#fff;font:800 clamp(13px,2.6vmin,17px) Nunito,sans-serif;text-align:center;cursor:pointer;box-shadow:0 6px 0 rgba(0,0,0,.3);animation:tkPop .3s cubic-bezier(.2,1.6,.4,1);max-width:92vw}
+#toast span{display:block;font:400 clamp(14px,2.8vmin,18px) 'Luckiest Guy',cursive;color:#ffd23f;margin-top:4px}
 #bigmap{position:fixed;inset:0;z-index:40;background:rgba(10,14,40,.82);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:max(10px,env(safe-area-inset-top)) 10px}
 #bmc{width:min(94vw,86vh);height:min(94vw,86vh);border-radius:22px;box-shadow:0 10px 40px rgba(0,0,0,.5)}#bmTip{font:400 13px 'Luckiest Guy',cursive;opacity:.7;margin-top:8px}
 body.roam #pos,body.roam #itemBox,body.roam #gpTag,body.roam #goal,body.roam #touch [data-k=item]{visibility:hidden}
@@ -228,6 +232,7 @@ td.pts{color:#7ee7c6;width:52px}
   <div id="itemBox"><div id="item"></div><div class="lbl">ITEM</div></div>
   <canvas id="mini" width="300" height="300"></canvas>
   <button id="pauseBtn" aria-label="Pause">❚❚</button>
+  <button id="townBtn" aria-label="Play together">👥</button>
   <div id="speed"><span id="spd">0</span><small>km/h</small></div>
   <div id="msg"></div>
 </div>
@@ -424,6 +429,14 @@ td.pts{color:#7ee7c6;width:52px}
 </div>
 
 <div id="bigmap" class="hidden"><canvas id="bmc" width="1200" height="1200"></canvas><div id="bmTip">TAP THE MAP OR PRESS M TO CLOSE</div></div>
+<div id="toast" class="hidden"></div>
+<div id="connecting" class="panel hidden"><div class="card"><h2 id="cnTitle">🏁 SETTING UP THE RACE…</h2><div class="note">Opening the race room — this can take a few seconds.</div></div></div>
+<div id="townNet" class="panel hidden"><div class="card"><h2>👥 PLAY TOGETHER</h2>
+  <div id="tnOff"><div class="note">Invite friends to drive round your town. When anyone drives into a track or Grand Prix portal, everyone else gets an invite to join the race.</div>
+    <button class="big" id="tnCreate">INVITE FRIENDS</button><div class="lab" style="margin-top:12px">OR JOIN A FRIEND'S TOWN</div><div class="joinRow"><input id="tnJoinCode" maxlength="4" placeholder="CODE" autocomplete="off"><button class="ghost" id="tnJoin">JOIN</button></div></div>
+  <div id="tnOn" class="hidden"><div class="lab">TOWN CODE</div><div id="tnCode">----</div><div class="shareRow"><input id="tnLink" readonly><button class="ghost" id="tnCopy">COPY LINK</button></div>
+    <div class="lab" style="margin-top:10px">IN YOUR TOWN</div><div id="tnPlayers"></div><button class="ghost" id="tnLeave">LEAVE SHARED TOWN</button></div>
+  <div id="tnErr" class="note"></div><button class="ghost" id="tnClose">CLOSE</button></div></div>
 <div id="tpanel" class="panel hidden"><div class="card"><h2 id="tpTitle"></h2><div class="note" id="tpSub"></div><div id="tpBody"></div><button class="ghost" id="tpCancel" style="margin-top:8px">NOT NOW</button></div></div>
 <div id="results" class="panel hidden">
   <div class="card">
@@ -1158,6 +1171,7 @@ addEventListener('keydown',e=>{if(e.target&&e.target.tagName==='INPUT')return;co
   if(e.repeat)return;
   if((e.code==='KeyE'||e.code==='KeyX'||e.code==='KeyF')&&player&&state==='race'&&!paused)useItem(player);
   if(e.code==='KeyP'||e.code==='Escape')togglePause();
+  if(e.code==='KeyJ'&&state==='roam'&&toastInv){joinInvite();return;}
   if(e.code==='KeyM'){if(state==='roam'&&player){toggleBigMap();return;}muted=!muted;applyMute();}});
 addEventListener('keyup',e=>{const k=KMAP[e.code];if(k)keys[k]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
@@ -1562,7 +1576,7 @@ function updateHUD(){
 }
 
 let last=performance.now();
-function loop(now){requestAnimationFrame(loop);townLabels();const dt=Math.min(0.05,(now-last)/1000);last=now;
+function loop(now){requestAnimationFrame(loop);townLabels();townAutoStart();if(toastInv)showToast();const dt=Math.min(0.05,(now-last)/1000);last=now;
   {const c=renderer.domElement;if(c.clientWidth!==viewW||c.clientHeight!==viewH)resize();}
   for(const c of clouds){c.position.x+=dt*2;}
   if(snow){const a=snow.geometry.attributes.position;for(let i=0;i<a.count;i++){let y=a.getY(i)-dt*7;if(y<0)y+=60;a.setY(i,y);a.setX(i,a.getX(i)+Math.sin(y*0.3+i)*dt*0.6);}a.needsUpdate=true;
@@ -2614,9 +2628,10 @@ function startRoam(spawn){initAudio();$('tpanel').classList.add('hidden');if(mod
   roam.q=0;roam.fa=roam.fn=0;rSun.castShadow=true;
   setTimeout(()=>{try{if(state==='roam'&&!roam.bmBg)drawBigMap();}catch(e){}},2500);
   player.y=groundAt(player.pos.x,player.pos.z);roam.inTrig=null;if(spawn&&roam.trigs){let b=null,bd=1e9;for(const t of roam.trigs){const d=Math.hypot(t.x-player.pos.x,t.z-player.pos.z);if(d<bd){bd=d;b=t;}}if(bd<30)roam.inTrig=b;}
+  if(tnet){tsend({t:'tcfg',cfg:kartCfg});setOthersVisible(true);}
   roam.kart=player;roam.score=0;roam.chain=0;roam.best=+(localStorage.getItem('turboTrails_driftBest')||0);
   karts=[];state='roam';camera.fov=70;camFollow(player,camera,0,true);showMsg('TURBO TOWN',2.2);$('msg').classList.add('title');playSong(2);drawRoamMap(true);}
-function leaveRoam(){townRet=null;$('bigmap').classList.add('hidden');$('tpanel').classList.add('hidden');camera.far=2500;camera.updateProjectionMatrix();document.body.classList.remove('roam');if(roam&&roam.kart){rScene.remove(roam.kart.group);disposeGroup(roam.kart.group);roam.kart=null;}player=null;mode=menuMode||'single';toMenu();}
+function leaveRoam(){townRet=null;leaveTownNet();$('townNet').classList.add('hidden');$('bigmap').classList.add('hidden');$('tpanel').classList.add('hidden');camera.far=2500;camera.updateProjectionMatrix();document.body.classList.remove('roam');if(roam&&roam.kart){rScene.remove(roam.kart.group);disposeGroup(roam.kart.group);roam.kart=null;}player=null;mode=menuMode||'single';toMenu();}
 function roamCollide(k){const kr=1.35;let hit=0;
   for(const b of rCol.boxes){const cx=clamp(k.pos.x,b.x0,b.x1),cz=clamp(k.pos.z,b.z0,b.z1),dx=k.pos.x-cx,dz=k.pos.z-cz,d2=dx*dx+dz*dz;
     if(d2<kr*kr){if(d2<1e-6){// inside: push out along the shortest axis
@@ -2668,7 +2683,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
     if(c.hit){c.t+=dt;c.v.y-=30*dt;c.m.position.addScaledVector(c.v,dt);c.m.rotation.x+=c.spin*dt;c.m.rotation.z+=c.spin*0.7*dt;
       if(c.m.position.y<0.4){c.m.position.y=0.4;c.v.multiplyScalar(0.5);c.v.y=Math.abs(c.v.y)*0.3;c.spin*=0.5;}
       if(c.t>6){c.hit=false;c.m.position.copy(c.home);c.m.rotation.set(0,0,0);}}}
-  for(const car of roam.cars)stepCar(car,dt);stepBall(dt,k);
+  for(const car of roam.cars)stepCar(car,dt);stepBall(dt,k);townNetTick(dt);
   roam.t=(roam.t||0)+dt;animTown(dt,roam.t);rSun.position.set(k.pos.x+60,k.y+110,k.pos.z+40);rSun.target.position.set(k.pos.x,k.y,k.pos.z);if(rScene.userData.sky)rScene.userData.sky.position.copy(camera.position);
   // kart visuals
   const y=k.hop>0?Math.sin((0.22-k.hop)/0.22*Math.PI)*0.7:0;k.group.position.set(k.pos.x,k.y+y,k.pos.z);k.shadow.position.y=k.g-k.y-y+0.07;k.group.rotation.y=k.h;
@@ -2700,6 +2715,7 @@ function drawRoamMap(rebuild){const IS=1400/(WB*2),IX=v=>(v+WB)*IS;
   if(!player)return;const VIEW=760,px=player.pos.x,pz=player.pos.z,sc=300/VIEW,M=v=>150+v*sc;
   mg.clearRect(0,0,300,300);mg.drawImage(roamImg,IX(px-VIEW/2),IX(pz-VIEW/2),VIEW*IS,VIEW*IS,0,0,300,300);
   mg.fillStyle='#9db4c8';for(const c of roam.cars){const x=M(c.pos.x-px),y=M(c.pos.z-pz);if(x>0&&x<300&&y>0&&y<300)mg.fillRect(x-3,y-3,6,6);}
+  if(tnet)for(const o of tnet.others.values()){if(o.away||!o.cur)continue;const x=clamp(M(o.cur.x-px),8,292),y=clamp(M(o.cur.z-pz),8,292);mg.fillStyle=hexOf(o.cfg.body);mg.strokeStyle='#fff';mg.lineWidth=3;mg.beginPath();mg.arc(x,y,8,0,7);mg.fill();mg.stroke();}
   mg.save();mg.translate(150,150);mg.rotate(-player.h);mg.fillStyle=hexOf(kartCfg.body);mg.strokeStyle='#fff';mg.lineWidth=3;mg.beginPath();mg.moveTo(0,12);mg.lineTo(8,-8);mg.lineTo(-8,-8);mg.closePath();mg.fill();mg.stroke();mg.restore();}
 // ================= TOWN LOBBY: garage, makeover, portals, track roads =================
 const TRACK_GATES=[['X1','city'],['X2','meadow'],['C0','canyon'],['C1','autumn'],['C4','lava'],['C5','coast'],['C8','frost'],['C9','neon']];
@@ -2812,11 +2828,14 @@ function openTownPanel(t){const k=player;paused=true;engineOff();for(const kk in
   $('tpTitle').textContent=title;$('tpSub').textContent=sub;$('tpanel').classList.remove('hidden');
   const dEl=$('tpDiff');if(dEl)dEl.onclick=ev=>{const b=ev.target.closest('button');if(!b)return;difficulty=b.dataset.d;dEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('#diff button').forEach(x=>x.classList.toggle('on',x.dataset.d===difficulty));if(t.kind==='track')openTownPanel(t);};
   const cEl=$('tpCup');if(cEl)cEl.onclick=ev=>{const b=ev.target.closest('button');if(!b)return;cupId=b.dataset.c;cEl.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));renderCup();};
-  const go=$('tpGo');if(go)go.onclick=()=>{if(t.kind==='track')leaveTownFor(t,()=>{mode='single';selectTrack(TRACKS.find(x=>x.id===t.track));startRace();});else leaveTownFor(t,()=>{mode='gp';startGP();});};
+  const go=$('tpGo');if(go)go.onclick=()=>{const friends=othersHere()>0;
+    if(t.kind==='track'){const def=TRACKS.find(x=>x.id===t.track);if(friends)return startTownRace(t,{track:def.id,laps:def.laps||3},def.emoji+' '+def.name);leaveTownFor(t,()=>{mode='single';selectTrack(def);startRace();});}
+    else{if(friends)return startTownRace(t,{gp:true,cup:cupId,track:cupTrack(cupId,0).id},'🏆 '+cupOf(cupId).name+' Grand Prix');leaveTownFor(t,()=>{mode='gp';startGP();});}};
+  if(go&&othersHere()>0){go.textContent+=' · INVITE '+othersHere()+' FRIEND'+(othersHere()>1?'S':'');}
   if($('tpOnline'))$('tpOnline').onclick=()=>leaveTownFor(t,()=>{toMenuCore();document.querySelector('#mode button[data-m=online]').click();});
   if($('tpTv'))$('tpTv').onclick=()=>leaveTownFor(t,()=>{toMenuCore();startTv();});}
 function closeTownPanel(){$('tpanel').classList.add('hidden');const t=roam.panelTrig;paused=false;if(t&&player){player.pos.set(t.out.x,0,t.out.z);player.h=t.out.h;player.speed=0;player.y=groundAt(t.out.x,t.out.z);player.vyG=0;camFollow(player,camera,0,true);}roam.inTrig=t;roam.panelTrig=null;}
-function leaveTownFor(t,fn){$('tpanel').classList.add('hidden');paused=false;townRet=t?{x:t.out.x,z:t.out.z,h:t.out.h}:null;roam.panelTrig=null;
+function leaveTownFor(t,fn){$('tpanel').classList.add('hidden');$('townNet').classList.add('hidden');hideToast(true);tsend({t:'tp',away:1});setOthersVisible(false);paused=false;townRet=t?{x:t.out.x,z:t.out.z,h:t.out.h}:null;roam.panelTrig=null;
   camera.far=2500;camera.updateProjectionMatrix();document.body.classList.remove('roam');if(roam.kart){rScene.remove(roam.kart.group);disposeGroup(roam.kart.group);roam.kart=null;}player=null;mode=menuMode||'single';fn();}
 function townTriggers(k){if(!roam.trigs)return;if(roam.inTrig){const t=roam.inTrig;if(Math.hypot(k.pos.x-t.x,k.pos.z-t.z)>t.r+4)roam.inTrig=null;return;}
   for(const t of roam.trigs){if(Math.hypot(k.pos.x-t.x,k.pos.z-t.z)>t.r||Math.abs(k.y-groundAt(t.x,t.z))>4)continue;roam.inTrig=t;sfx.item();
@@ -2836,9 +2855,66 @@ function drawBigMap(){const c=$('bmc'),g=c.getContext('2d'),S=c.width,sc=S/(WB*2
     g.font='28px sans-serif';g.textAlign='center';g.fillStyle='#fff';g.fillText(ic.t,x,y+2);
     g.font='900 24px Nunito,sans-serif';g.textAlign='left';g.lineWidth=6;g.strokeStyle='rgba(15,18,45,.95)';g.strokeText(ic.n,x+30,y);g.fillText(ic.n,x+30,y);}
   g.fillStyle='#ffd23f';g.font='900 26px Nunito,sans-serif';g.textAlign='center';g.lineWidth=6;g.strokeText('TURBO TOWN',X(0),X(150));g.fillText('TURBO TOWN',X(0),X(150));
+  if(tnet)for(const o of tnet.others.values()){if(o.away||!o.cur)continue;g.fillStyle=hexOf(o.cfg.body);g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.arc(X(o.cur.x),X(o.cur.z),11,0,7);g.fill();g.stroke();g.font='900 20px Nunito,sans-serif';g.textAlign='center';g.lineWidth=5;g.strokeStyle='rgba(15,18,45,.95)';g.strokeText(o.name,X(o.cur.x),X(o.cur.z)-20);g.fillStyle='#fff';g.fillText(o.name,X(o.cur.x),X(o.cur.z)-20);}
   if(player){g.save();g.translate(X(player.pos.x),X(player.pos.z));g.rotate(-player.h);g.fillStyle=hexOf(kartCfg.body);g.strokeStyle='#fff';g.lineWidth=3;g.beginPath();g.moveTo(0,16);g.lineTo(11,-11);g.lineTo(-11,-11);g.closePath();g.fill();g.stroke();g.restore();
     g.font='900 20px Nunito,sans-serif';g.lineWidth=5;g.strokeText('YOU',X(player.pos.x),X(player.pos.z)-22);g.fillStyle='#fff';g.fillText('YOU',X(player.pos.x),X(player.pos.z)-22);}}
 function townLabels(){if(!townRet)return;for(const id of ['menuBtn','gpMenuBtn','quitBtn'])if($(id).textContent==='MAIN MENU')$(id).textContent='BACK TO TOWN';}
+
+// ================= SHARED TOWN: drive around with friends =================
+let tnet=null,pendingNet=null,toastInv=null;
+function tsend(o){if(tnet&&tnet.ws&&tnet.ws.readyState===1)tnet.ws.send(JSON.stringify(o));}
+function tnetConnect(kind,code){if(tnet)return;let ws;try{ws=new WebSocket(wsUrl());}catch(e){$('tnErr').textContent='Sharing only works on the Turbo Trails website.';return;}
+  tnet={ws,id:null,room:null,players:[],others:new Map(),acc:0};$('tnErr').textContent='Connecting…';renderTownNet();
+  ws.onopen=()=>tsend({t:kind,room:code,name:onlineName(),cfg:kartCfg});
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(x){return;}onTown(m);};
+  ws.onclose=()=>{const was=tnet&&tnet.id;dropTownNet();if(was)showMsg('LEFT SHARED TOWN',1.6,true);else $('tnErr').textContent='Could not reach the game server. If it has been idle it may take a minute to wake up — try again.';renderTownNet();};}
+function dropTownNet(){if(!tnet)return;for(const o of tnet.others.values())removeOther(o);const t=tnet;tnet=null;try{t.ws.onclose=null;t.ws.close();}catch(e){}hideToast();try{const u=new URL(location.href);u.searchParams.delete('town');history.replaceState(null,'',u.pathname+u.search);}catch(e){}}
+function leaveTownNet(){tsend({t:'tleave'});dropTownNet();renderTownNet();}
+function onTown(m){if(!tnet)return;
+  switch(m.t){
+    case 'terr':$('tnErr').textContent=m.msg;try{tnet.ws.onclose=null;tnet.ws.close();}catch(e){}tnet=null;renderTownNet();break;
+    case 'tjoined':tnet.id=m.id;tnet.room=m.room;$('tnErr').textContent='';try{history.replaceState(null,'','?town='+m.room);}catch(e){}renderTownNet();sendTownPos(true);break;
+    case 'tlist':tnet.players=m.players||[];
+      for(const p of tnet.players){if(p.id===tnet.id)continue;const o=tnet.others.get(p.id),cfg=sanitizeCfg(p.cfg),key=JSON.stringify(cfg);
+        if(o&&o.key!==key){removeOther(o);tnet.others.delete(p.id);}if(!tnet.others.has(p.id))tnet.others.set(p.id,makeOther(p,cfg,key));else tnet.others.get(p.id).name=p.name;}
+      for(const [id,o] of tnet.others)if(!tnet.players.some(p=>p.id===id)){removeOther(o);tnet.others.delete(id);}
+      renderTownNet();break;
+    case 'tleft':{const o=tnet.others.get(m.from||m.id);if(o){showMsg(o.name+' LEFT',1.2);}break;}
+    case 'tp':{const o=tnet.others.get(m.from);if(!o)break;if(m.away){o.away=true;o.kart.group.visible=false;o.tag.visible=false;break;}
+      const [x,y,z,h,sp,dr]=m.p;o.tgt={x,y,z,h,sp,dr};if(o.away||!o.cur){o.cur={x,y,z,h};o.away=false;}o.kart.group.visible=o.tag.visible=state==='roam';break;}
+    case 'tinv':if(Date.now()>m.until)break;toastInv=m;showToast();break;}}
+function makeOther(p,cfg,key){const k=makeKart(cfg,rScene);k.group.visible=false;k.group.traverse(o=>{if(o.isMesh)o.castShadow=true;});k.shadow.visible=false;
+  const c=document.createElement('canvas');c.width=256;c.height=64;const g=c.getContext('2d');g.font='900 38px "Luckiest Guy",Nunito,sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineWidth=8;g.strokeStyle='#14183a';g.strokeText(p.name,128,34);g.fillStyle=hexOf(cfg.body);g.fillText(p.name,128,34);
+  const tag=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,fog:false}));tag.scale.set(5,1.25,1);tag.visible=false;rScene.add(tag);
+  return {id:p.id,name:p.name,cfg,key,kart:k,tag,tgt:null,cur:null,away:true};}
+function removeOther(o){rScene.remove(o.kart.group);disposeGroup(o.kart.group);rScene.remove(o.tag);}
+function sendTownPos(force){if(!tnet||!tnet.id||!player||state!=='roam')return;const k=player;tsend({t:'tp',p:[+k.pos.x.toFixed(2),+k.y.toFixed(2),+k.pos.z.toFixed(2),+k.h.toFixed(3),+k.speed.toFixed(1),k.drifting?k.driftDir:0]});}
+function townNetTick(dt){if(!tnet)return;tnet.acc+=dt;if(tnet.acc>0.08){tnet.acc=0;sendTownPos();}
+  for(const o of tnet.others.values()){if(!o.tgt||o.away)continue;const c=o.cur,t=o.tgt,f=Math.min(1,dt*10);
+    // predict a little along their heading so movement looks smooth between updates
+    const px=t.x+Math.sin(t.h)*t.sp*0.05,pz=t.z+Math.cos(t.h)*t.sp*0.05;c.x+=(px-c.x)*f;c.z+=(pz-c.z)*f;c.y+=(t.y-c.y)*f;let dh=Math.atan2(Math.sin(t.h-c.h),Math.cos(t.h-c.h));c.h+=dh*f;
+    const k=o.kart;k.group.position.set(c.x,c.y,c.z);k.group.rotation.y=c.h;k.pivot.rotation.y+=((t.dr?t.dr*0.42:0)-k.pivot.rotation.y)*f;
+    if(k.rig){k.rig.t+=dt;poseDriver(k.rig,t.dr?t.dr*0.6:0,0,false);}for(const s of k.sparks)s.visible=!!t.dr;
+    o.tag.position.set(c.x,c.y+4.2,c.z);}}
+function setOthersVisible(v){if(!tnet)return;for(const o of tnet.others.values()){const on=v&&!o.away&&!!o.tgt;o.kart.group.visible=on;o.tag.visible=on;}}
+function othersHere(){if(!tnet)return 0;let n=0;for(const o of tnet.others.values())if(!o.away)n++;return n;}
+// ---- invite panel ----
+function renderTownNet(){const on=tnet&&tnet.id;$('tnOff').classList.toggle('hidden',!!on);$('tnOn').classList.toggle('hidden',!on);
+  if(on){$('tnCode').textContent=tnet.room;$('tnLink').value=location.origin+location.pathname+'?town='+tnet.room;
+    $('tnPlayers').innerHTML=tnet.players.map(p=>{const c=sanitizeCfg(p.cfg);return `<div class="lp"><span class="dot" style="background:${hexOf(c.body)}"></span><b>${esc(p.name)}</b>${p.id===tnet.id?'<i class="you">YOU</i>':''}</div>`;}).join('')+(tnet.players.length<2?'<div class="lp cpu">Send the link to your friends — up to 8 can join</div>':'');}
+  $('townBtn').textContent=on?'👥 '+tnet.players.length:'👥';}
+function openTownNet(){if(!$('tpanel').classList.contains('hidden')||!$('bigmap').classList.contains('hidden'))return;$('townNet').classList.remove('hidden');renderTownNet();}
+// ---- race invites ----
+function showToast(){const m=toastInv;if(!m||state!=='roam'){hideToast(!m);return;}const left=Math.ceil((m.until-Date.now())/1000);if(left<=0){hideToast();return;}
+  $('toast').innerHTML=`🏁 <b>${esc(m.name)}</b> is starting <b>${esc(m.label)}</b><span>TAP TO JOIN · ${left}s</span>`;$('toast').classList.remove('hidden');}
+function hideToast(keep){$('toast').classList.add('hidden');if(!keep)toastInv=null;}
+function joinInvite(){const m=toastInv;if(!m||Date.now()>m.until)return hideToast();hideToast();const k=player;
+  leaveTownFor({out:{x:k.pos.x,z:k.pos.z,h:k.h}},()=>{toMenuCore();$('menu').classList.add('hidden');$('cnTitle').textContent='🏁 JOINING '+m.name.toUpperCase()+'\'S RACE…';$('connecting').classList.remove('hidden');netConnect('join',m.code);});}
+// starting a race from a portal while friends are in town: open an online room and invite them
+function startTownRace(t,settings,label){pendingNet=Object.assign({ai:true,laps:3,gp:false,cup:'classic',track:'meadow'},settings);
+  leaveTownFor(t,()=>{toMenuCore();$('menu').classList.add('hidden');$('cnTitle').textContent='🏁 SETTING UP THE RACE…';$('connecting').classList.remove('hidden');netConnect('create');net.townInvite={label};});}
+function townAutoStart(){if(!net||!net.autoAt||state!=='lobby'||!amHost())return;const left=Math.ceil((net.autoAt-Date.now())/1000);
+  const b=$('lbStart');if(!b.disabled)b.textContent=(net.settings&&net.settings.gp?'START GRAND PRIX':'START RACE')+' ('+Math.max(0,left)+')';if(left<=0){net.autoAt=0;b.click();}}
 
 // ---------- online multiplayer ----------
 let net=null,netAcc=0;
@@ -2857,17 +2933,19 @@ function netConnect(kind,code){
   ws.onopen=()=>nsend({t:kind,room:code,name:onlineName(),cfg:kartCfg});
   ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(x){return;}onNet(m);};
   ws.onerror=()=>{};
-  ws.onclose=()=>{const joined=net&&net.id;net=null;if(joined)leaveOnline('Lost connection to the game server.');else $('onErr').textContent='Could not reach the game server. If it has been idle it may take up to a minute to wake up, so please try again.';};
+  ws.onclose=()=>{const joined=net&&net.id;net=null;if(joined)leaveOnline('Lost connection to the game server.');else if(townRet){const r=townRet;townRet=null;startRoam(r);showMsg('COULD NOT REACH SERVER',1.8,true);}else $('onErr').textContent='Could not reach the game server. If it has been idle it may take up to a minute to wake up, so please try again.';};
 }
 function leaveOnline(msg){if(net){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;}
   try{history.replaceState(null,'',location.pathname);}catch(e){}
   toMenu();$('onErr').textContent=msg||'';}
 function onNet(m){if(!net)return;
   switch(m.t){
-    case 'err':if(m.tv){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;location.href=location.pathname+'?pad='+m.tv;break;}$('onErr').textContent=m.msg;try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;break;
-    case 'joined':net.id=m.id;net.room=m.room;$('onErr').textContent='';try{history.replaceState(null,'','?room='+m.room);}catch(e){}showLobby();break;
+    case 'err':if(m.town){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;const c=m.town;startRoam();tnetConnect('tjoin',c);break;}
+      if(townRet){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;const r=townRet;townRet=null;startRoam(r);showMsg(/progress/.test(m.msg)?'RACE ALREADY STARTED':'COULD NOT JOIN',1.8,true);break;}
+      if(m.tv){try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;location.href=location.pathname+'?pad='+m.tv;break;}$('onErr').textContent=m.msg;try{net.ws.onclose=null;net.ws.close();}catch(e){}net=null;break;
+    case 'joined':net.id=m.id;net.room=m.room;$('onErr').textContent='';if(net.townInvite){tsend({t:'tinv',code:m.room,label:net.townInvite.label,until:Date.now()+20000});net.autoAt=Date.now()+20000;}try{history.replaceState(null,'','?room='+m.room);}catch(e){}showLobby();break;
     case 'lobby':net.host=m.host;net.players=m.players||[];
-      if(amHost()){if(!net.settings)net.settings={track:curTrack.id,laps:3,ai:true,gp:false,cup:'classic'};nsend({t:'set',settings:net.settings});if(net.inRace)adoptAI();}
+      if(amHost()){if(!net.settings){net.settings=pendingNet||{track:curTrack.id,laps:3,ai:true,gp:false,cup:'classic'};pendingNet=null;}nsend({t:'set',settings:net.settings});if(net.inRace)adoptAI();}
       renderLobby();break;
     case 'set':if(m.from===net.host&&m.settings){const s=m.settings;net.settings={track:TRACKS.some(t=>t.id===s.track)?s.track:'meadow',laps:clamp(s.laps|0,1,5),ai:!!s.ai,gp:!!s.gp,cup:cupOf(s.cup).id};renderLobby();}break;
     case 'start':netStart(m);break;
@@ -2899,7 +2977,7 @@ function netTick(dt){if(!net||!net.inRace)return;netAcc+=dt;if(netAcc<0.066)retu
     arr.push([k.netId,+k.pos.x.toFixed(2),+k.pos.z.toFixed(2),+k.h.toFixed(3),+k.y.toFixed(2),+k.speed.toFixed(1),f,k.lap,k.idx,+k.charge.toFixed(2),+(k.vy||0).toFixed(1)]);}
   if(arr.length)nsend({t:'s',k:arr});}
 function adoptAI(){for(const k of karts)if(k.ai&&k.remote){k.remote=false;if(k.net){k.pos.set(k.net.x,0,k.net.z);k.h=k.net.h;k.speed=k.net.sp;}k.maxLap=Math.max(k.maxLap,k.lap);k.lane=k.laneTarget=0;}}
-function showLobby(){state='lobby';['menu','results','hud','touch','pause','trophy','garage'].forEach(id=>$(id).classList.add('hidden'));
+function showLobby(){$('connecting').classList.add('hidden');state='lobby';['menu','results','hud','touch','pause','trophy','garage'].forEach(id=>$(id).classList.add('hidden'));
   $('lobby').classList.remove('hidden');$('againBtn').classList.remove('hidden');engineOff();renderLobby();}
 function renderLobby(){if(!net||!net.id||state!=='lobby')return;const host=amHost(),s=net.settings||{track:curTrack.id,laps:3,ai:true};
   $('lbCode').textContent=net.room;$('lbLink').value=location.origin+location.pathname+'?room='+net.room;
@@ -3162,13 +3240,19 @@ TRACKS.forEach(d=>{const b=document.createElement('button');b.className='tk';b.d
 selectTrack(TRACKS[0]);
 renderCup();
 $('restartBtn').onclick=()=>{if(state==='roam'){paused=false;$('pause').classList.add('hidden');startRoam();return;}startRace();};
-$('roamBtn').onclick=()=>{townRet=null;startRoam();};
+$('roamBtn').onclick=()=>{townRet=null;startRoam();if(pendingTown){const c=pendingTown;pendingTown=null;$('roamBtn').textContent='🏙️ ENTER TURBO TOWN';tnetConnect('tjoin',c);}};
 $('tpCancel').onclick=()=>closeTownPanel();
+$('townBtn').onclick=e=>{e.stopPropagation();openTownNet();};$('tnClose').onclick=()=>$('townNet').classList.add('hidden');
+$('tnCreate').onclick=()=>tnetConnect('tcreate');$('tnLeave').onclick=()=>leaveTownNet();
+$('tnJoin').onclick=()=>{const c=($('tnJoinCode').value||'').toUpperCase().replace(/[^A-Z]/g,'');if(c.length!==4){$('tnErr').textContent='Enter the 4-letter town code.';return;}tnetConnect('tjoin',c);};
+$('tnCopy').onclick=async()=>{const v=$('tnLink').value;try{if(navigator.share&&touchMode){await navigator.share({title:'Turbo Trails',text:'Come and drive round my Turbo Town!',url:v});return;}await navigator.clipboard.writeText(v);$('tnCopy').textContent='COPIED!';}catch(e){$('tnLink').select();document.execCommand('copy');$('tnCopy').textContent='COPIED!';}setTimeout(()=>$('tnCopy').textContent='COPY LINK',1500);};
+$('toast').onclick=()=>joinInvite();
+let pendingTown=null;{const c=(new URLSearchParams(location.search).get('town')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,4);if(c.length===4){pendingTown=c;$('roamBtn').textContent='🏙️ JOIN YOUR FRIEND\'S TOWN';}}
 $('mini').addEventListener('click',()=>{if(state==='roam')toggleBigMap();});$('bigmap').onclick=()=>toggleBigMap();
 $('resumeBtn').onclick=()=>togglePause();
 $('pauseBtn').onclick=()=>togglePause();
 function toMenu(){toMenuCore();if(townRet){const r=townRet;townRet=null;startRoam(r);}}
-function toMenuCore(){document.body.classList.remove('roam');if(mode==='roam')mode=menuMode||'single';if(mode==='story'){mode=menuMode;difficulty=menuDiff;stage=null;}$('goal').classList.add('hidden');['story','storyRes'].forEach(id=>$(id).classList.add('hidden'));clearTalk();playSong(4);clearRace();player=null;paused=false;state='menu';gp=null;LAPS=3;$('lobby').classList.add('hidden');$('againBtn').classList.remove('hidden');['pause','results','hud','touch','trophy'].forEach(id=>$(id).classList.add('hidden'));$('menu').classList.remove('hidden');showBest();engineOff();}
+function toMenuCore(){$('connecting').classList.add('hidden');document.body.classList.remove('roam');if(mode==='roam')mode=menuMode||'single';if(mode==='story'){mode=menuMode;difficulty=menuDiff;stage=null;}$('goal').classList.add('hidden');['story','storyRes'].forEach(id=>$(id).classList.add('hidden'));clearTalk();playSong(4);clearRace();player=null;paused=false;state='menu';gp=null;LAPS=3;$('lobby').classList.add('hidden');$('againBtn').classList.remove('hidden');['pause','results','hud','touch','trophy'].forEach(id=>$(id).classList.add('hidden'));$('menu').classList.remove('hidden');showBest();engineOff();}
 $('quitBtn').onclick=()=>state==='roam'?leaveRoam():tvs?toTvLobby():net?leaveOnline():mode==='story'?openStory():toMenu();$('menuBtn').onclick=()=>tvs?toTvLobby():net?leaveOnline():toMenu();
 $('stBack').onclick=()=>leaveStory();
 $('stRegions').onclick=e=>{const b=e.target.closest('button[data-s]');if(b&&!b.disabled)playStage(b.dataset.s);};
