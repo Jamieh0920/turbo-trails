@@ -2129,7 +2129,7 @@ const sstep=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t);};
 function baseH(x,z){const r=Math.max(Math.abs(x),Math.abs(z))*0.55+Math.hypot(x,z)*0.45;
   const town=sstep(540,760,r);if(town<=0)return 0;
   const hills=(fbm(x/260+11,z/260+7,4)-0.35)*42,mtn=Math.pow(ridged(x/520+3,z/520+9),1.6)*230,mm=sstep(720,1300,r),edge=sstep(WB-220,WB-20,Math.max(Math.abs(x),Math.abs(z)))*150;
-  return Math.max(-2,hills*town+mtn*mm*town+edge);}
+  return Math.max(-2,hills*town+mtn*mm*town+edge+dirtHill(x,z));}
 // --- country roads: a loop through the hills + roads out of town ---
 function defineCountry(){const C=[];const N=11;
   for(let k=0;k<N;k++){const th=-Math.PI/2+k/N*Math.PI*2+Math.sin(k*2.3)*0.12,r=1010+Math.sin(k*1.7)*90+Math.cos(k*3.1)*50;C.push([r*Math.cos(th),r*Math.sin(th)]);rnode('C'+k,C[k][0],C[k][1]);RN[RN.length-1].country=true;}
@@ -2152,22 +2152,30 @@ function profileEdge(e){const c=e.c,n=c.length,h=new Float32Array(n),s=new Float
   for(let i=0;i<n;i++)c[i].y=sm[i];}
 // --- terrain heightmap ---
 // ================= DIRT DASH: an off-road track in the hills south-east of town =================
-const DIRT={x:555,z:660,W:13,on:false};
-function defineDirt(){const L=[[-90,-55],[-30,-62],[20,-50],[70,-66],[100,-35],[92,2],[56,8],[25,-10],[-5,14],[15,36],[55,40],[90,56],[52,76],[0,74],[-50,60],[-75,30],[-55,5],[-95,-15]];
+const DIRT={x:520,z:590,W:13,on:false};
+// the dirt track's own rolling hills (fade out well before town)
+function dirtHill(x,z){const dx=(x-DIRT.x)/235,dz=(z-DIRT.z)/180,r=Math.hypot(dx,dz);if(r>=1)return 0;const rt=Math.max(Math.abs(x),Math.abs(z))*0.55+Math.hypot(x,z)*0.45;
+  return (1-sstep(0.72,1,r))*sstep(565,680,rt)*((fbm(x/80+31,z/80+17,3)-0.4)*66+Math.sin(x/43)*Math.cos(z/49)*11);}
+function defineDirt(){const L=[[-90,-55],[-30,-62],[20,-50],[70,-66],[100,-35],[92,2],[56,8],[25,-10],[-5,14],[15,36],[55,40],[90,56],[52,76],[0,74],[-50,60],[-75,30],[-55,5],[-95,-15]].map(([u,v])=>[u*1.75,v*1.62]);
   const crv=new THREE.CatmullRomCurve3(L.map(([u,v])=>new THREE.Vector3(DIRT.x+u,0,DIRT.z+v)),true,'centripetal'),N=Math.round(crv.getLength()/1.5);let c=crv.getSpacedPoints(N);c.pop();c=c.slice(10).concat(c.slice(0,10));
   const n=c.length,ds=crv.getLength()/N,w=(i)=>((i%n)+n)%n;DIRT.c=c;DIRT.ds=ds;
   // gentle rolling profile: follow the land, smoothed, max ~10% grade (it's a loop, so everything wraps)
-  let h=c.map(p=>baseH(p.x,p.z));for(let it=0;it<2;it++){const t=h.slice();for(let i=0;i<n;i++){let a=0,k=0;for(let j=-14;j<=14;j++){a+=t[w(i+j)];k++;}h[i]=a/k;}}
-  const G=0.1*ds;for(let it=0;it<10;it++){for(let i=0;i<n;i++)h[i]=clamp(h[i],h[w(i-1)]-G,h[w(i-1)]+G);for(let i=n-1;i>=0;i--)h[i]=clamp(h[i],h[w(i+1)]-G,h[w(i+1)]+G);}
+  let h=c.map(p=>baseH(p.x,p.z));for(let it=0;it<2;it++){const t=h.slice();for(let i=0;i<n;i++){let a=0,k=0;for(let j=-7;j<=7;j++){a+=t[w(i+j)];k++;}h[i]=a/k;}}
+  // exact slope limit on a loop: min/max-plus envelopes (lowered peaks + raised dips, averaged)
+  const G=0.24*ds,env=(a,dir)=>{const f=dir>0?Math.min:Math.max,g=dir>0?G:-G;for(let r=0;r<2;r++){for(let i=1;i<=2*n;i++){const k=w(i);a[k]=f(a[k],a[w(i-1)]+g);}for(let i=2*n;i>=1;i--){const k=w(i-1);a[k]=f(a[k],a[w(i)]+g);}}return a;};
+  {const U=env(h.slice(),1),Lo=env(h.slice(),-1);h=h.map((v,i)=>(U[i]+Lo[i])/2);}
   // access lane from the nearest road
   let best=null;for(const e of RE)for(const q of e.c)for(let i=0;i<n;i+=3){const d=Math.hypot(q.x-c[i].x,q.z-c[i].z);if(!best||d<best.d)best={d,q,i};}
   DIRT.join=best.i;
   // features, spaced along the loop (index = fraction of the lap); keep clear of the junction
   const at=f=>{let i=Math.round(f*n);if(Math.abs(w(i-best.i+n/2)-n/2)<22)i=w(best.i+(f*n>best.i?24:-36));return i;};
-  DIRT.F=[{k:'table',i:at(0.05)},{k:'mud',i:at(0.18)},{k:'logs',i:at(0.42)},{k:'whoops',i:at(0.58)},{k:'gap',i:at(0.67)},{k:'fallen',i:at(0.79)},{k:'fallen2',i:at(0.86)},{k:'mud',i:at(0.95)}];
+  DIRT.F=[{k:'table',i:at(0.035)},{k:'mud',i:at(0.11)},{k:'logs',i:at(0.2)},{k:'kicker',i:at(0.27)},{k:'whoops',i:at(0.35)},{k:'fallen',i:at(0.43)},{k:'gap',i:at(0.51)},{k:'mud',i:at(0.58)},{k:'table',i:at(0.65)},{k:'fallen2',i:at(0.73)},{k:'logs',i:at(0.8)},{k:'whoops',i:at(0.86)},{k:'gap',i:at(0.93)}];
   // flat plateaus under the jumps so ramps sit square
-  for(const f of DIRT.F){if(f.k!=='table'&&f.k!=='gap')continue;const a=Math.round(12/ds),b=Math.round((f.k==='table'?48:40)/ds),bl=Math.round(16/ds),y0=h[f.i];
-    for(let j=-a-bl;j<=b+bl;j++){const k=w(f.i+j),out=j<-a?(-a-j)/bl:j>b?(j-b)/bl:0,s=1-sstep(0,1,out);h[k]=h[k]+(y0-h[k])*s;}}
+  const fx=new Uint8Array(n),fy=new Float32Array(n);
+  for(const f of DIRT.F){if(f.k!=='table'&&f.k!=='gap'&&f.k!=='kicker')continue;const a=Math.round(12/ds),b=Math.round((f.k==='table'?48:f.k==='kicker'?30:40)/ds),y0=h[f.i];
+    for(let j=-a;j<=b;j++){const k=w(f.i+j);fx[k]=1;fy[k]=y0;}}
+  // keep everything else within the slope limit of the flat jump areas
+  {const Uf=env(Array.from(fy,(v,i)=>fx[i]?v:1e9),1),Lf=env(Array.from(fy,(v,i)=>fx[i]?v:-1e9),-1);for(let i=0;i<n;i++)h[i]=fx[i]?fy[i]:clamp(h[i],Lf[i],Uf[i]);}
   for(let i=0;i<n;i++)c[i].y=h[i];
   const A=best.q,B=c[best.i],ay=A.y||0,ln=Math.max(2,Math.round(Math.hypot(B.x-A.x,B.z-A.z)/2)),acc=[];
   for(let k=0;k<=ln;k++){const t=k/ln,s=t*t*(3-2*t);acc.push(new THREE.Vector3(A.x+(B.x-A.x)*t,ay+(B.y-ay)*s,A.z+(B.z-A.z)*t));}
@@ -2198,8 +2206,7 @@ function buildDirt(R){if(!DIRT.c)return;const c=DIRT.c,n=c.length,W=DIRT.W;
   stripMesh(DIRT.acc,-4,4,0.07,0.07,dirtM,14);for(const s of [-1,1])stripMesh(DIRT.acc,s*4,s*6,0.07,-0.3,edgeM,14);
   rasLine(loop,W/2+0.6,1,true);rasLine(DIRT.acc,4.6,1,true);rasLine(loop,W/2+9,2);rasLine(DIRT.acc,9,2);
   // start / finish: chequered line + log arch with a banner
-  {const s=dirtPt(0),t=dirtTan(s.i);const chk=cnv(128,32,(g,w,h)=>{for(let y=0;y<2;y++)for(let x=0;x<8;x++){g.fillStyle=(x+y)%2?'#111':'#fff';g.fillRect(x*16,y*16,16,16);}});
-    const ln=rAdd(new THREE.PlaneGeometry(W,2.2),new THREE.MeshLambertMaterial({map:chk}),s.x,s.y+0.1,s.z,null,false);ln.rotation.order='YXZ';ln.rotation.y=t.yaw;ln.rotation.x=-Math.PI/2;
+  {const s=dirtPt(0),t=dirtTan(s.i);
     const logM=new THREE.MeshLambertMaterial({color:0x7a5230});for(const sd of [-1,1]){const px=s.x+t.nx*sd*(W/2+1.2),pz=s.z+t.nz*sd*(W/2+1.2);rAdd(new THREE.CylinderGeometry(0.45,0.55,8,12),logM,px,s.y+4,pz);rCirc(px,pz,0.6);}
     const b=document.createElement('canvas');b.width=512;b.height=128;const x=b.getContext('2d');x.fillStyle='#7a4a22';x.fillRect(0,0,512,128);x.fillStyle='#ffd23f';x.font='900 76px "Luckiest Guy",Nunito,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('🏁 DIRT DASH',256,70);
     const bm=new THREE.MeshLambertMaterial({map:new THREE.CanvasTexture(b),side:THREE.DoubleSide}),ban=rAdd(new THREE.PlaneGeometry(W+2.4,3),bm,s.x,s.y+6.6,s.z,null,false);ban.rotation.y=t.yaw+Math.PI;
@@ -2208,10 +2215,12 @@ function buildDirt(R){if(!DIRT.c)return;const c=DIRT.c,n=c.length,W=DIRT.W;
   const logM=new THREE.MeshLambertMaterial({color:0x6b4a2b}),endM=new THREE.MeshLambertMaterial({color:0xd8b98a}),mudM=new THREE.MeshPhongMaterial({color:0x4a3220,shininess:90,specular:0x6b5a40});
   const log=(x,y,z,yaw,r,L)=>{const m=rAdd(new THREE.CylinderGeometry(r,r*1.05,L,14),logM,x,y,z);m.rotation.order='YXZ';m.rotation.y=yaw;m.rotation.x=Math.PI/2;
     for(const s of [-1,1]){const e=rAdd(new THREE.CircleGeometry(r*0.98,14),endM,x+Math.sin(yaw)*s*(L/2+0.01),y,z+Math.cos(yaw)*s*(L/2+0.01),null,false);e.rotation.y=yaw+(s>0?0:Math.PI);}return m;};
-  const mud=(i,ahead,side,r)=>{const p=dirtPt(i,ahead,side),m=rAdd(new THREE.CircleGeometry(r,24),mudM,p.x,p.y+0.09,p.z,null,false);m.rotation.x=-Math.PI/2;m.scale.set(1,0.7+((i*7)%5)*0.08,1);(roam.muds=roam.muds||[]).push({x:p.x,z:p.z,r:r*0.85});};
+  const mud=(i,ahead,side,r)=>{const p=dirtPt(i,ahead,side),sq=0.7+((i*7)%5)*0.08,geo=new THREE.CircleGeometry(r,24,0,Math.PI*2);geo.rotateX(-Math.PI/2);geo.scale(1,1,sq);
+    const ps=geo.attributes.position;for(let v=0;v<ps.count;v++)ps.setY(v,rasHAt(p.x+ps.getX(v),p.z+ps.getZ(v))-p.y+0.09);geo.computeVertexNormals();const m=rAdd(geo,mudM,p.x,p.y,p.z,null,false);(roam.muds=roam.muds||[]).push({x:p.x,z:p.z,r:r*0.85});};
   for(const f of DIRT.F){const i=f.i;
     if(f.k==='table'){dirtRamp(i,0,'kick',9,2.4,moundM);dirtRamp(i,4.5+13,'table',26,1.4,moundM,{down:8});}
     else if(f.k==='gap'){dirtRamp(i,0,'kick',9,2.6,moundM);mud(i,11,-2,4.2);mud(i,13,2.5,3.6);dirtRamp(i,4.5+10+9,'hump',18,1.8,moundM);}
+    else if(f.k==='kicker'){dirtRamp(i,0,'kick',10,3.0,moundM);dirtRamp(i,4.5+16,'hump',14,1.2,moundM);}
     else if(f.k==='mud'){mud(i,0,-2.5,3.4);mud(i,5,2,3);mud(i,10,-1,2.6);}
     else if(f.k==='logs'){for(let k=0;k<3;k++){const r=dirtRamp(i,k*9,'hump',1.9,0.5,null),p=dirtPt(i,k*9);log(p.x,p.y+0.28,p.z,p.yaw+Math.PI/2,0.42,W+1.5);}}
     else if(f.k==='whoops'){for(let k=0;k<5;k++)dirtRamp(i,k*5.6,'hump',4.6,0.85,moundM);}
@@ -2230,28 +2239,12 @@ function buildDirt(R){if(!DIRT.c)return;const c=DIRT.c,n=c.length,W=DIRT.W;
     else if(i%28===0&&!busy(i)){const sd=R()<0.5?1:-1,p=dirtPt(i,0,sd*(W/2+3.4));if(R()<0.6){const hb=bk('dhay',hayM,hayG,p.x,p.y+0.9,p.z,0,0,Math.PI/2);rCirc(p.x,p.z,1);}
       else{bk('dpole',logM,new RAW.Cyl(0.06,0.06,3.4,6),p.x,p.y+1.7,p.z,0,0,0);const fl=rAdd(new THREE.PlaneGeometry(1.1,0.7),flagM[(i/28|0)%4],p.x+0.55,p.y+3,p.z,null,false);fl.rotation.y=R()*6;}}}
   // pines dotted around the infield and outside
-  for(let k=0;k<160;k++){const x=DIRT.x+(R()-0.5)*260,z=DIRT.z+(R()-0.5)*200;if(rasAt(x,z)&15)continue;const y=terrainH(x,z),s=0.9+R()*0.6;
+  for(let k=0;k<420;k++){const x=DIRT.x+(R()-0.5)*420,z=DIRT.z+(R()-0.5)*320;if(rasAt(x,z)&15)continue;const y=terrainH(x,z),s=0.9+R()*0.6;
     bk('dtr',logM,new RAW.Cyl(0.3,0.42,2.2*s,6),x,y+1.1*s,z,0,0,0);bk('dpn',new THREE.MeshLambertMaterial({color:0x2f7d45}),new RAW.Cone(2.6*s,5*s,8),x,y+4.2*s,z,0,0,0);bk('dpn2',new THREE.MeshLambertMaterial({color:0x358a4c}),new RAW.Cone(1.7*s,3.4*s,8),x,y+6.8*s,z,0,0,0);
     rCirc(x,z,0.6*s);rasRect(x,z,0,2,2,2);}
   // sign at the junction
   {const A=DIRT.acc[0],B=DIRT.acc[Math.min(6,DIRT.acc.length-1)],dx=B.x-A.x,dz=B.z-A.z,l=Math.hypot(dx,dz)||1,s=roamSign('🏁 DIRT DASH','#7a4a22');s.position.set(B.x+dz/l*7,B.y,B.z-dx/l*7);s.rotation.y=Math.atan2(-dx,-dz);rScene.add(s);}
-  (roam.icons=roam.icons||[]).push({x:DIRT.x,z:DIRT.z,t:'🏁',n:'Dirt Dash'});
-  try{DIRT.best=+localStorage.getItem('turboTrails_dirtBest')||0;}catch(e){DIRT.best=0;}}
-// lap timing
-function fmtT(t){const m=Math.floor(t/60),s=t-m*60;return m+':'+(s<10?'0':'')+s.toFixed(1);}
-function dirtTick(k,dt){if(!DIRT.c)return false;if(Math.abs(k.pos.x-DIRT.x)>140||Math.abs(k.pos.z-DIRT.z)>120){DIRT.on=false;DIRT.run=null;return false;}
-  const c=DIRT.c,n=c.length;let bi=0,bd=1e9;for(let i=0;i<n;i+=1){const d=(c[i].x-k.pos.x)**2+(c[i].z-k.pos.z)**2;if(d<bd){bd=d;bi=i;}}
-  DIRT.on=bd<(DIRT.W/2+10)**2;const prev=DIRT.ki===undefined?bi:DIRT.ki;DIRT.ki=bi;
-  if(DIRT.run)DIRT.run.t+=dt;
-  if(DIRT.on){const q=Math.floor(bi/n*4);if(DIRT.run&&q===DIRT.run.q+1)DIRT.run.q=q;
-    if(prev>n*0.8&&bi<n*0.2){// crossed the line going forwards
-      if(DIRT.run&&DIRT.run.q>=3){const t=DIRT.run.t,nb=!DIRT.best||t<DIRT.best;if(nb){DIRT.best=t;try{localStorage.setItem('turboTrails_dirtBest',t.toFixed(2));}catch(e){}}
-        showMsg((nb?'NEW BEST! ':'LAP ')+fmtT(t),1.8);if(nb)sfx.boost();else sfx.lap&&sfx.lap();}
-      else if(!DIRT.run)showMsg('DIRT DASH · GO!',1.2);
-      DIRT.run={t:0,q:0};}
-    else if(prev<n*0.2&&bi>n*0.8)DIRT.run=null;}
-  if(!DIRT.on&&!DIRT.run)return false;
-  $('time').innerHTML='🏁 '+(DIRT.run?fmtT(DIRT.run.t):'CROSS THE LINE');$('lap').innerHTML='BEST LAP '+(DIRT.best?fmtT(DIRT.best):'--');return true;}
+  (roam.icons=roam.icons||[]).push({x:DIRT.x,z:DIRT.z,t:'🏁',n:'Dirt Dash'});}
 const TS=6,TN=Math.ceil(2*WB/TS)+1,TH=new Float32Array(TN*TN),TW=new Float32Array(TN*TN),TT=new Float32Array(TN*TN),TD=new Float32Array(TN*TN).fill(1e9);
 const tIx=v=>(v+WB)/TS;
 function terrainH(x,z){const fx=clamp(tIx(x),0,TN-1.001),fz=clamp(tIx(z),0,TN-1.001),i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j;
@@ -3004,7 +2997,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
   const cull=[620,430,330][roam.q||0];for(const m of rInstList){const sp=m.geometry.boundingSphere;m.visible=camera.position.distanceTo(sp.center)-sp.radius<cull;}
   // HUD
   $('spd').textContent=Math.round(Math.abs(k.speed)*3);
-  if(!dirtTick(k,dt)){$('time').innerHTML=roam.chain>5?'🔥 DRIFT '+Math.round(roam.chain):'DRIFT SCORE '+roam.score;$('lap').innerHTML='BEST DRIFT '+roam.best;}
+  $('time').innerHTML=roam.chain>5?'🔥 DRIFT '+Math.round(roam.chain):'DRIFT SCORE '+roam.score;$('lap').innerHTML='BEST DRIFT '+roam.best;
   engineSound(k.speed,k.boostT>0,!muted&&!paused,dt);drawRoamMap();townTriggers(k);}
 // minimap
 const roamImg=document.createElement('canvas');roamImg.width=roamImg.height=1400;
