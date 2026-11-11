@@ -2156,7 +2156,7 @@ const DIRT={x:520,z:590,W:13,on:false};
 // the dirt track's own rolling hills (fade out well before town)
 function dirtHill(x,z){const dx=(x-DIRT.x)/235,dz=(z-DIRT.z)/180,r=Math.hypot(dx,dz);if(r>=1)return 0;const rt=Math.max(Math.abs(x),Math.abs(z))*0.55+Math.hypot(x,z)*0.45;
   return (1-sstep(0.72,1,r))*sstep(565,680,rt)*((fbm(x/80+31,z/80+17,3)-0.4)*66+Math.sin(x/43)*Math.cos(z/49)*11);}
-function defineDirt(){const L=[[-90,-55],[-30,-62],[20,-50],[70,-66],[100,-35],[92,2],[56,8],[25,-10],[-5,14],[15,36],[55,40],[90,56],[52,76],[0,74],[-50,60],[-75,30],[-55,5],[-95,-15]].map(([u,v])=>[u*1.75,v*1.62]);
+function defineDirt(){const L=[[-90,-55],[-30,-62],[20,-50],[70,-66],[100,-35],[92,2],[56,8],[25,-10],[-5,14],[15,36],[55,40],[88,46],[93,68],[52,76],[0,74],[-50,60],[-75,30],[-55,5],[-95,-15]].map(([u,v])=>[u*1.75,v*1.62]);
   const crv=new THREE.CatmullRomCurve3(L.map(([u,v])=>new THREE.Vector3(DIRT.x+u,0,DIRT.z+v)),true,'centripetal'),N=Math.round(crv.getLength()/1.5);let c=crv.getSpacedPoints(N);c.pop();c=c.slice(10).concat(c.slice(0,10));
   const n=c.length,ds=crv.getLength()/N,w=(i)=>((i%n)+n)%n;DIRT.c=c;DIRT.ds=ds;
   // gentle rolling profile: follow the land, smoothed, max ~10% grade (it's a loop, so everything wraps)
@@ -2181,7 +2181,10 @@ function defineDirt(){const L=[[-90,-55],[-30,-62],[20,-50],[70,-66],[100,-35],[
   for(let k=0;k<=ln;k++){const t=k/ln,s=t*t*(3-2*t);acc.push(new THREE.Vector3(A.x+(B.x-A.x)*t,ay+(B.y-ay)*s,A.z+(B.z-A.z)*t));}
   DIRT.acc=acc;}
 // terrain hooks (called from buildHeights)
-function dirtSplat(){if(!DIRT.c)return;for(const p of DIRT.c)splatFlat(p.x,p.z,p.y-0.22,DIRT.W/2+2,DIRT.W/2+18);for(const p of DIRT.acc)splatFlat(p.x,p.z,p.y-0.22,5,18);}
+function dirtSplat(){if(!DIRT.c)return;for(const p of DIRT.c)splatFlat(p.x,p.z,p.y-0.22,DIRT.W/2+4,DIRT.W/2+44);for(const p of DIRT.acc)splatFlat(p.x,p.z,p.y-0.22,6,30);}
+function dirtBlur(){if(!DIRT.c)return;const i0=Math.max(1,Math.floor(tIx(DIRT.x-300))),i1=Math.min(TN-2,Math.ceil(tIx(DIRT.x+300))),j0=Math.max(1,Math.floor(tIx(DIRT.z-240))),j1=Math.min(TN-2,Math.ceil(tIx(DIRT.z+240)));
+  for(let it=0;it<3;it++){const src=TH.slice();for(let a=i0;a<=i1;a++)for(let b=j0;b<=j1;b++){const px=a*TS-WB,pz=b*TS-WB,r=Math.hypot((px-DIRT.x)/300,(pz-DIRT.z)/240);if(r>=1)continue;const w=1-sstep(0.75,1,r);let s2=0;
+    for(let da=-1;da<=1;da++)for(let db=-1;db<=1;db++)s2+=src[(a+da)*TN+b+db];TH[a*TN+b]=src[a*TN+b]+(s2/9-src[a*TN+b])*w;}}}
 function dirtCap(){if(!DIRT.c)return;const cap=(p,hw)=>{const r=hw+6,i0=Math.max(0,Math.floor(tIx(p.x-r))),i1=Math.min(TN-1,Math.ceil(tIx(p.x+r))),j0=Math.max(0,Math.floor(tIx(p.z-r))),j1=Math.min(TN-1,Math.ceil(tIx(p.z+r)));
     for(let a=i0;a<=i1;a++)for(let b=j0;b<=j1;b++){const d=Math.hypot(a*TS-WB-p.x,b*TS-WB-p.z);if(d<r){const k=a*TN+b,cp=p.y-0.3+(d>hw+1?(d-hw-1)*0.45:0);if(TH[k]>cp)TH[k]=cp;}}};
   for(const p of DIRT.c)cap(p,DIRT.W/2);for(const p of DIRT.acc)cap(p,4.5);}
@@ -2198,13 +2201,46 @@ function dirtRampMesh(r,mat){const sh=new THREE.Shape(),L=r.len,H=r.h;
 function dirtRamp(p,ahead,k,len,h,mat,extra){const q=dirtPt(p,ahead),t=dirtTan(q.i),r=Object.assign({x:q.x,y:q.y,z:q.z,dx:t.dx,dz:t.dz,len,wd:DIRT.W-0.6,h,k},extra||{});
   r.R=Math.hypot(len,r.wd)/2+0.5;(roam.ramps=roam.ramps||[]).push(r);if(mat)dirtRampMesh(r,mat);return r;}
 function inMud(x,z){for(const m of roam.muds||[]){const dx=x-m.x,dz=z-m.z;if(dx*dx+dz*dz<m.r*m.r)return true;}return false;}
+// sloped verges: a smooth, drivable ramp from the dirt edge down to the land (physics + mesh share one shape)
+const DSH=new Map();
+function shoulderReg(pts,hw,S,closed,id){const r=hw+S,L=pts.length;for(let i=0;i<L;i++){const p=pts[i],i0=rIx(p.x-r),i1=rIx(p.x+r),j0=rIx(p.z-r),j1=rIx(p.z+r);
+  for(let a=Math.max(0,i0);a<=Math.min(RAS_N-1,i1);a++)for(let b=Math.max(0,j0);b<=Math.min(RAS_N-1,j1);b++){const cx=a*RAS_C-RAS_O+1,cz=b*RAS_C-RAS_O+1,d=Math.hypot(cx-p.x,cz-p.z);if(d>r+1.5)continue;
+    const k=a*RAS_N+b;let L2=DSH.get(k);if(!L2){L2=[];DSH.set(k,L2);}ras[k]|=16;
+    const e=L2.find(q=>q.pts===pts&&Math.min(Math.abs(q.i-i),closed?L-Math.abs(q.i-i):1e9)<6);if(e){if(d<e.d){e.d=d;e.i=i;}}else L2.push({d,i,pts,hw,S,closed});}}}
+function shoulderBlend(ty,T,o,hw,S){const t=sstep(hw+0.2,hw+S,o);return Math.max(T,ty+0.06+(T-ty-0.06)*t);}
+function shoulderRaw(x,z){const Ls=DSH.get(clamp(rIx(x),0,RAS_N-1)*RAS_N+clamp(rIx(z),0,RAS_N-1));if(!Ls)return null;const T=terrainH(x,z);let up=0,hit=false;
+  for(const e of Ls){const P=e.pts,L=P.length;let bd=1e9,by=0,ci=e.i;
+    const dq=k=>{const q=P[e.closed?((k%L)+L)%L:clamp(k,0,L-1)];return (q.x-x)**2+(q.z-z)**2;};for(let st=0;st<40;st++){const a=dq(ci),m=dq(ci-1),p2=dq(ci+1);if(m<a&&(e.closed||ci>0))ci--;else if(p2<a&&(e.closed||ci<L-1))ci++;else break;}
+    if(e.closed)ci=((ci%L)+L)%L;
+    for(const [u,v] of [[ci-1,ci],[ci,ci+1]]){let A=P[u],B=P[v];if(!A||!B){if(!e.closed)continue;A=P[(u+L)%L];B=P[v%L];}const dx=B.x-A.x,dz=B.z-A.z,l2=dx*dx+dz*dz||1,t=clamp(((x-A.x)*dx+(z-A.z)*dz)/l2,0,1),px=A.x+dx*t,pz=A.z+dz*t,d=Math.hypot(x-px,z-pz);
+      if(d<bd){bd=d;by=A.y+(B.y-A.y)*t;}}
+    if(bd>e.hw+e.S)continue;hit=true;up=Math.max(up,(by+0.06-T)*(1-sstep(e.hw+0.2,e.hw+e.S,bd)));}
+  return hit?T+up:null;}
+// bake the verge onto the 2m grid, smooth it, and read it back bilinearly: always continuous
+let SHV=new Map();
+function shoulderBake(){SHV=new Map();const cen=k=>[Math.floor(k/RAS_N)*RAS_C-RAS_O+1,(k%RAS_N)*RAS_C-RAS_O+1];
+  for(const k of DSH.keys()){if(ras[k]&1)continue;const [x,z]=cen(k),v=shoulderRaw(x,z);SHV.set(k,v===null?terrainH(x,z):v);}
+  const val=k=>ras[k]&1?rasH[k]+0.06:SHV.has(k)?SHV.get(k):(()=>{const [x,z]=cen(k);return terrainH(x,z);})();
+  for(let it=0;it<4;it++){const nv=new Map();for(const [k,v] of SHV){let s2=0;for(let da=-1;da<=1;da++)for(let db=-1;db<=1;db++)s2+=val(k+da*RAS_N+db);const [x,z]=cen(k);nv.set(k,Math.max(terrainH(x,z),s2/9));}SHV=nv;}}
+function shoulderH(x,z){const fx=(x+RAS_O-1)/RAS_C,fz=(z+RAS_O-1)/RAS_C,i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j;let a=0;
+  for(const [di,dj,ww] of [[0,0,(1-u)*(1-v)],[1,0,u*(1-v)],[0,1,(1-u)*v],[1,1,u*v]]){const k=clamp(i+di,0,RAS_N-1)*RAS_N+clamp(j+dj,0,RAS_N-1);
+    a+=ww*(ras[k]&1?rasH[k]+0.06:SHV.has(k)?SHV.get(k):terrainH((i+di)*RAS_C-RAS_O+1,(j+dj)*RAS_C-RAS_O+1));}
+  return Math.max(a,terrainH(x,z));}
+function shoulderMesh(pts,hw,S,closed){const K=6,P=closed?pts.concat([pts[0]]):pts,pos=[],col=[],uv=[],idx=[],cD=new THREE.Color(0x9c6f43),cG=new THREE.Color(0x66b84c),cY=new THREE.Color(0x9fb35a),cT=new THREE.Color(0xc9b27a),cc=new THREE.Color();
+  let v=0;for(let i=0;i<P.length;i++){const p=P[i],q=P[Math.min(i+1,P.length-1)],r=P[Math.max(i-1,0)],dx=q.x-r.x,dz=q.z-r.z,l=Math.hypot(dx,dz)||1,nx=dz/l,nz=-dx/l;if(i)v+=p.distanceTo(P[i-1])/14;
+    for(const s of [-1,1])for(let k=0;k<=K;k++){const o=hw+S*k/K,x=p.x+nx*s*o,z=p.z+nz*s*o,T=terrainH(x,z),sh=k?shoulderH(x,z):null,y=(k?(sh===null?shoulderBlend(p.y,T,o,hw,S):sh)+0.05:p.y+0.06);pos.push(x,y,z);uv.push(s*o/14,v);
+      const nzN=fbm(x/40,z/40,2);cc.copy(cG).lerp(cY,clamp((y-25)/60,0,0.7)*nzN+0.1*nzN).lerp(cT,0.25);cc.lerp(cD,1-sstep(0,0.75,k/K));col.push(cc.r,cc.g,cc.b);}}
+  const R=2*(K+1);for(let i=0;i<P.length-1;i++)for(let s=0;s<2;s++)for(let k=0;k<K;k++){const a=i*R+s*(K+1)+k,b=a+R;idx.push(a,a+1,b,b,a+1,b+1);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({map:cnv(128,128,(c,w,h)=>{c.fillStyle='#e8e8e8';c.fillRect(0,0,w,h);speckle(c,w,h,['#d6d6d6','#f4f4f4','#cccccc','#ffffff'],1500,2);}),vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  m.receiveShadow=true;rScene.add(m);return m;}
 function buildDirt(R){if(!DIRT.c)return;const c=DIRT.c,n=c.length,W=DIRT.W;
   const dirtT=cnv(256,256,(g,w,h)=>{g.fillStyle='#9c6f43';g.fillRect(0,0,w,h);speckle(g,w,h,['#8d6239','#a97a4b','#b58757','#7f5733','#c19566'],9000,2);
     g.strokeStyle='rgba(70,45,22,.35)';g.lineWidth=10;for(const x of [62,96,160,194]){g.beginPath();g.moveTo(x,0);for(let y=0;y<=h;y+=32)g.lineTo(x+Math.sin(y*0.05)*4,y);g.stroke();}});
   const dirtM=new THREE.MeshLambertMaterial({map:dirtT}),edgeM=new THREE.MeshLambertMaterial({map:dirtT,color:0x9fbf6a}),moundM=new THREE.MeshLambertMaterial({map:(()=>{const t=dirtT.clone();t.needsUpdate=true;t.repeat.set(0.14,0.14);return t;})(),color:0xe6d2b0});
-  const loop=c.concat([c[0],c[1]]);stripMesh(loop,-W/2,W/2,0.06,0.06,dirtM,14);for(const s of [-1,1])stripMesh(loop,s*W/2,s*(W/2+2.6),0.06,-0.32,edgeM,14);
-  stripMesh(DIRT.acc,-4,4,0.07,0.07,dirtM,14);for(const s of [-1,1])stripMesh(DIRT.acc,s*4,s*6,0.07,-0.3,edgeM,14);
+  const loop=c.concat([c[0],c[1]]);stripMesh(loop,-W/2,W/2,0.06,0.06,dirtM,14);stripMesh(DIRT.acc,-4,4,0.07,0.07,dirtM,14);
   rasLine(loop,W/2+0.6,1,true);rasLine(DIRT.acc,4.6,1,true);rasLine(loop,W/2+9,2);rasLine(DIRT.acc,9,2);
+  shoulderReg(c,W/2,11,true);shoulderReg(DIRT.acc,4,9,false);shoulderBake();shoulderMesh(c,W/2,11,true);shoulderMesh(DIRT.acc,4,9,false);
   // start / finish: chequered line + log arch with a banner
   {const s=dirtPt(0),t=dirtTan(s.i);
     const logM=new THREE.MeshLambertMaterial({color:0x7a5230});for(const sd of [-1,1]){const px=s.x+t.nx*sd*(W/2+1.2),pz=s.z+t.nz*sd*(W/2+1.2);rAdd(new THREE.CylinderGeometry(0.45,0.55,8,12),logM,px,s.y+4,pz);rCirc(px,pz,0.6);}
@@ -2239,7 +2275,7 @@ function buildDirt(R){if(!DIRT.c)return;const c=DIRT.c,n=c.length,W=DIRT.W;
     else if(i%28===0&&!busy(i)){const sd=R()<0.5?1:-1,p=dirtPt(i,0,sd*(W/2+3.4));if(R()<0.6){const hb=bk('dhay',hayM,hayG,p.x,p.y+0.9,p.z,0,0,Math.PI/2);rCirc(p.x,p.z,1);}
       else{bk('dpole',logM,new RAW.Cyl(0.06,0.06,3.4,6),p.x,p.y+1.7,p.z,0,0,0);const fl=rAdd(new THREE.PlaneGeometry(1.1,0.7),flagM[(i/28|0)%4],p.x+0.55,p.y+3,p.z,null,false);fl.rotation.y=R()*6;}}}
   // pines dotted around the infield and outside
-  for(let k=0;k<420;k++){const x=DIRT.x+(R()-0.5)*420,z=DIRT.z+(R()-0.5)*320;if(rasAt(x,z)&15)continue;const y=terrainH(x,z),s=0.9+R()*0.6;
+  for(let k=0;k<420;k++){const x=DIRT.x+(R()-0.5)*420,z=DIRT.z+(R()-0.5)*320;if(rasAt(x,z)&31)continue;const y=terrainH(x,z),s=0.9+R()*0.6;
     bk('dtr',logM,new RAW.Cyl(0.3,0.42,2.2*s,6),x,y+1.1*s,z,0,0,0);bk('dpn',new THREE.MeshLambertMaterial({color:0x2f7d45}),new RAW.Cone(2.6*s,5*s,8),x,y+4.2*s,z,0,0,0);bk('dpn2',new THREE.MeshLambertMaterial({color:0x358a4c}),new RAW.Cone(1.7*s,3.4*s,8),x,y+6.8*s,z,0,0,0);
     rCirc(x,z,0.6*s);rasRect(x,z,0,2,2,2);}
   // sign at the junction
@@ -2271,7 +2307,7 @@ function rasHAt(x,z){// smooth: blend the road cells around the point
   return w>0?a/w:rasH[clamp(rIx(x),0,RAS_N-1)*RAS_N+clamp(rIx(z),0,RAS_N-1)];}
 function rasWAt(x,z){const i=rIx(x),j=rIx(z);return rasW[clamp(i,0,RAS_N-1)*RAS_N+clamp(j,0,RAS_N-1)];}
 // ground under a point: road surface where there is road, else terrain
-function roamGround(x,z,y){if(rasAt(x,z)&1){const h=rasHAt(x,z);if(y===undefined||h<=y+1.6)return h;}return terrainH(x,z);}
+function roamGround(x,z,y){const b=rasAt(x,z);if(b&1){const h=rasHAt(x,z);if(y===undefined||h<=y+1.6)return h;}if(b&16){const s=shoulderH(x,z);if(s!==null)return s;}return terrainH(x,z);}
 function buildHeights(){for(let i=0;i<TN;i++)for(let j=0;j<TN;j++)TH[i*TN+j]=baseH(i*TS-WB,j*TS-WB);
   // flatten corridors along the country roads (cuttings + embankments)
   for(const e of RE)if(e.country)for(const p of e.c)splatFlat(p.x,p.z,p.y-0.25,RH+4,RH+26);
@@ -2281,7 +2317,7 @@ function buildHeights(){for(let i=0;i<TN;i++)for(let j=0;j<TN;j++)TH[i*TN+j]=bas
   // never let ground poke through a road: under and beside every road, the ground stays below the surface
   for(const e of RE)if(e.country)for(const p of e.c){const r=RH+6,i0=Math.max(0,Math.floor(tIx(p.x-r))),i1=Math.min(TN-1,Math.ceil(tIx(p.x+r))),j0=Math.max(0,Math.floor(tIx(p.z-r))),j1=Math.min(TN-1,Math.ceil(tIx(p.z+r)));
     for(let a=i0;a<=i1;a++)for(let b=j0;b<=j1;b++){const d=Math.hypot(a*TS-WB-p.x,b*TS-WB-p.z);if(d<r){const k=a*TN+b,cap=p.y-0.35+(d>RH+1?(d-RH-1)*0.5:0);if(TH[k]>cap)TH[k]=cap;}}}
-  dirtCap();
+  dirtBlur();dirtCap();
   // rivers: carve valleys, monotone downhill water
   rivers=RIVERS.map(pts=>{const crv=new THREE.CatmullRomCurve3(pts.map(([x,z])=>new THREE.Vector3(x,0,z)),false,'centripetal'),c=crv.getSpacedPoints(Math.round(crv.getLength()/5));
     let lo=1e9;const wy=c.map(p=>{let a=0,w=0;for(let dx=-30;dx<=30;dx+=15)for(let dz=-30;dz<=30;dz+=15){a+=terrainH(p.x+dx,p.z+dz);w++;}return a/w;});
@@ -2325,7 +2361,7 @@ function buildCountry(R){const wm=new THREE.MeshPhongMaterial({map:(()=>{const t
   const pineG=new RAW.Cone(1,1,8),pineM=new THREE.MeshLambertMaterial({color:0xffffff}),F={tr:IM(new RAW.Cyl(0.3,0.42,1,6),new THREE.MeshLambertMaterial({color:0x6b4a2b})),p:IM(pineG,pineM),b:IM(new RAW.Ico(1,1),pineM),rk:IM(new RAW.Ico(1,0),new THREE.MeshLambertMaterial({color:0x9a958c}))};
   for(let n=0;n<26000;n++){const x=(R()-0.5)*2*(WB-30),z=(R()-0.5)*2*(WB-30);const rr=Math.max(Math.abs(x),Math.abs(z));if(rr<BND+30)continue;
     const fd=fbm(x/300+40,z/300+5,3);const y=terrainH(x,z),sl=Math.abs(terrainH(x+3,z)-y)+Math.abs(terrainH(x,z+3)-y);
-    if(rasAt(x,z)&15)continue;if(y>140||sl>3.2){if(y>40&&R()<0.05&&sl<5){const s=1+R()*2.5;iadd(F.rk,x,y+s*0.3,z,R()*6,s*1.3,s*0.8,s,'#'+['9a958c','8d8a84','a8a39a'][(R()*3)|0]);}continue;}
+    if(rasAt(x,z)&31)continue;if(y>140||sl>3.2){if(y>40&&R()<0.05&&sl<5){const s=1+R()*2.5;iadd(F.rk,x,y+s*0.3,z,R()*6,s*1.3,s*0.8,s,'#'+['9a958c','8d8a84','a8a39a'][(R()*3)|0]);}continue;}
     if(fd<0.5&&R()>0.06)continue;const s=0.9+R()*0.7;
     if(y>55||R()<0.7){iadd(F.tr,x,y+1.1*s,z,0,s,2.2*s,s);iadd(F.p,x,y+4.2*s,z,0,2.6*s,5*s,2.6*s,['#2f7d45','#2a7040','#3a8f52','#26683c'][(R()*4)|0]);iadd(F.p,x,y+6.8*s,z,0,1.7*s,3.4*s,1.7*s,['#2f7d45','#2a7040','#358a4c'][(R()*3)|0]);}
     else{iadd(F.tr,x,y+1.6*s,z,0,s*1.1,3.2*s,s*1.1);iadd(F.b,x,y+4.6*s,z,0,2.8*s,2.4*s,2.8*s,['#4f9e3e','#5cae48','#478f37'][(R()*3)|0]);iadd(F.b,x+1.3*s,y+3.9*s,z+0.5*s,0,1.9*s,1.7*s,1.9*s,'#57a845');}
