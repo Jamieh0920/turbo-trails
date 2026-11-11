@@ -2200,6 +2200,7 @@ function dirtRampMesh(r,mat){const sh=new THREE.Shape(),L=r.len,H=r.h;
   const m=new THREE.Mesh(geo,mat);m.position.set(r.x,r.y-0.02,r.z);m.rotation.y=Math.atan2(r.dx,r.dz)-Math.PI/2;m.castShadow=m.receiveShadow=true;rScene.add(m);return m;}
 function dirtRamp(p,ahead,k,len,h,mat,extra){const q=dirtPt(p,ahead),t=dirtTan(q.i),r=Object.assign({x:q.x,y:q.y,z:q.z,dx:t.dx,dz:t.dz,len,wd:DIRT.W-0.6,h,k},extra||{});
   r.R=Math.hypot(len,r.wd)/2+0.5;(roam.ramps=roam.ramps||[]).push(r);if(mat)dirtRampMesh(r,mat);return r;}
+function inDirtArea(x,z){return !!DIRT.c&&Math.hypot((x-DIRT.x)/240,(z-DIRT.z)/185)<1;}
 function inMud(x,z){for(const m of roam.muds||[]){const dx=x-m.x,dz=z-m.z;if(dx*dx+dz*dz<m.r*m.r)return true;}return false;}
 // sloped verges: a smooth, drivable ramp from the dirt edge down to the land (physics + mesh share one shape)
 const DSH=new Map();
@@ -2999,7 +3000,7 @@ function stepRoam(dt){const k=player;if(!k)return;let inp=playerInput();if(k.bon
   const GA=(x,z)=>roamGround(x,z,k.y)+rampH(x,z);let g=GA(k.pos.x,k.pos.z);const mv=Math.hypot(k.pos.x-px,k.pos.z-pz);
   if(!k.air&&g>k.y+Math.max(0.7,mv*1.05)){k.pos.x=px;k.pos.z=pz;if(Math.abs(k.speed)>6)sfx.bonk();k.speed*=-0.25;g=GA(px,pz);}
   else if(!k.air&&mv>0.02&&rPrev<0.05)k.speed-=clamp((g-k.y)/mv,-0.6,0.6)*20*dt*Math.sign(k.speed||1);
-  if(k.air){k.vy-=34*dt;k.y+=k.vy*dt;k.airT+=dt;if(k.y<=g){k.y=g;k.air=false;k.hop=0.14;k.vyG=0;if(k.airT>0.55){k.boostT=Math.max(k.boostT,0.55);showMsg('BIG AIR!',0.8);sfx.boost();}else sfx.land();}}
+  if(k.air){k.vy-=34*dt;k.y+=k.vy*dt;k.airT+=dt;if(k.y<=g){k.y=g;k.air=false;k.hop=0.14;k.vyG=0;if(k.airT>0.55){if(inDirtArea(k.pos.x,k.pos.z)){showMsg('BIG AIR!',0.8);sfx.land();}else{k.boostT=Math.max(k.boostT,0.55);showMsg('BIG AIR!',0.8);sfx.boost();}}else sfx.land();}}
   else{const pred=k.y+(k.vyG||0)*dt;
     if(g<pred-0.6&&k.speed>10){k.air=true;k.airT=0;k.vy=rPrev>0.3?Math.max(2,Math.min(k.speed,60)*rPrev*0.1):Math.max(0,(k.vyG||0));}
     else{const ny=g>k.y?k.y+(g-k.y)*Math.min(1,dt*25):k.y+(g-k.y)*Math.min(1,dt*18);k.vyG=clamp((ny-k.y)/dt,-30,30)*0.5+(k.vyG||0)*0.5;k.y=Math.max(ny,g-0.15);}}
